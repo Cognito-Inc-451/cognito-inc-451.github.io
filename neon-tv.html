@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 <style>
 /* ── RESET & BASE ─────────────────────────────────────────── */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -185,6 +186,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .ctrl-btn.scan-btn{font-size:18px;font-weight:700;letter-spacing:-2px}
 .ctrl-btn.scan-btn.scanning{color:var(--amber);border-color:var(--amber);animation:pulse 1s ease infinite}
 
+/* Cast button */
+.ctrl-btn.cast-btn svg{width:18px;height:18px;fill:currentColor}
+.ctrl-btn.cast-btn.cast-connected{color:var(--cyan);border-color:var(--cyan);box-shadow:var(--glow-cyan)}
+.ctrl-btn.cast-btn.cast-connecting{color:var(--amber);border-color:var(--amber);animation:pulse 1.5s ease infinite}
+
 /* Volume */
 .volume-wrap{display:flex;align-items:center;gap:6px}
 .volume-slider{
@@ -362,7 +368,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <button class="ctrl-btn scan-btn" id="prevChBtn" title="Scan previous (P)">⏮</button>
         <button class="ctrl-btn scan-btn" id="nextChBtn" title="Scan next (N)">⏭</button>
         <button class="ctrl-btn" id="favNowBtn" title="Favorite">☆</button>
-        <button class="ctrl-btn" id="castBtn" title="Cast to TV">📺</button>
+        <button class="ctrl-btn cast-btn" id="castBtn" title="Cast to TV"><svg viewBox="0 0 24 24"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></button>
         <button class="ctrl-btn" id="pipBtn" title="Picture-in-Picture" style="display:none">⧉</button>
         <button class="ctrl-btn theater-btn" id="theaterBtn" title="Theater mode">⛶</button>
         <button class="ctrl-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
@@ -773,6 +779,9 @@ function playChannel(ch) {
   }
 
   startStream(url);
+
+  // If casting, also load on the cast device
+  if (castSession) castLoadMedia(url, ch.name);
 }
 
 function startStream(url) {
@@ -1113,46 +1122,108 @@ function showToast(html, duration) {
   if (duration) toastTimer = setTimeout(() => toastEl.classList.remove('visible'), duration);
 }
 
-// ── Cast to TV ───────────────────────────────────────────
+// ── Google Cast SDK integration ───────────────────────────
+let castSession = null;
+let castAvailable = false;
+
+window.__onGCastApiAvailable = function(isAvailable) {
+  if (!isAvailable) return;
+  const ctx = cast.framework.CastContext.getInstance();
+  ctx.setOptions({
+    receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
+  });
+  castAvailable = true;
+  castBtn.style.opacity = '1';
+
+  ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, (e) => {
+    const state = e.sessionState;
+    if (state === cast.framework.SessionState.SESSION_STARTED ||
+        state === cast.framework.SessionState.SESSION_RESUMED) {
+      castSession = ctx.getCurrentSession();
+      castBtn.classList.add('cast-connected');
+      castBtn.classList.remove('cast-connecting');
+      // If a channel is playing, load it on the cast device
+      if (currentChannel) castLoadMedia(currentChannel.url, currentChannel.name);
+    } else if (state === cast.framework.SessionState.SESSION_ENDING ||
+               state === cast.framework.SessionState.SESSION_ENDED) {
+      castSession = null;
+      castBtn.classList.remove('cast-connected', 'cast-connecting');
+    }
+  });
+};
+
+function castLoadMedia(url, title) {
+  if (!castSession) return;
+  const mediaInfo = new chrome.cast.media.MediaInfo(url, 'application/x-mpegURL');
+  mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+  mediaInfo.metadata.title = title || 'NEON TV';
+  const req = new chrome.cast.media.LoadRequest(mediaInfo);
+  castSession.loadMedia(req).then(
+    () => showToast('<div class="toast-title">CASTING</div>Now casting: ' + escHtml(title || 'stream'), 3000),
+    (e) => showToast('<div class="toast-title">CAST ERROR</div>' + escHtml(e.description || 'Failed to load media'), 4000)
+  );
+}
+
 castBtn.addEventListener("click", async () => {
   if (!currentChannel) {
-    showToast('<div class="toast-title">📺 CAST</div>Select a channel first', 3000);
+    showToast('<div class="toast-title">CAST</div>Select a channel first', 3000);
     return;
   }
-  const streamUrl = currentChannel.url;
 
-  // 1) Try Remote Playback API (Chrome over HTTPS / localhost)
-  if (video.remote) {
+  // 1) Google Cast SDK (Chromecast)
+  if (castAvailable) {
     try {
-      await video.remote.prompt();
+      castBtn.classList.add('cast-connecting');
+      const ctx = cast.framework.CastContext.getInstance();
+      if (castSession) {
+        // Already connected — load the current channel
+        castLoadMedia(currentChannel.url, currentChannel.name);
+        return;
+      }
+      await ctx.requestSession();
+      // Session started event will trigger castLoadMedia
       return;
     } catch(e) {
-      if (e.name === "NotAllowedError") return;
+      castBtn.classList.remove('cast-connecting');
+      if (e === 'cancel') return; // user cancelled
+      // fall through
     }
   }
-  // 2) Try AirPlay picker (Safari)
+
+  // 2) AirPlay (Safari)
   if (video.webkitShowPlaybackTargetPicker) {
     try {
       video.webkitShowPlaybackTargetPicker();
       return;
     } catch(e) { /* fall through */ }
   }
-  // 3) Copy stream URL to clipboard + guidance
+
+  // 3) Remote Playback API (works for direct src, not MSE)
+  if (video.remote && video.src && !video.src.startsWith('blob:')) {
+    try {
+      await video.remote.prompt();
+      return;
+    } catch(e) {
+      if (e.name === 'NotAllowedError') return;
+    }
+  }
+
+  // 4) Fallback: copy URL + guidance
   try {
-    await navigator.clipboard.writeText(streamUrl);
+    await navigator.clipboard.writeText(currentChannel.url);
     showToast(
-      '<div class="toast-title">📺 CAST TO TV</div>' +
+      '<div class="toast-title">CAST</div>' +
       'Stream URL copied to clipboard!<br><br>' +
-      '<b>To cast from this browser:</b><br>' +
-      'Chrome: <kbd>⋮</kbd> → <b>Cast…</b> &nbsp;|&nbsp; Edge: <kbd>⋯</kbd> → <b>Cast media to device</b><br><br>' +
-      '<b>Or paste the URL in a cast-capable app</b> (VLC, IINA, etc.)',
+      '<b>Chrome:</b> menu → <b>Save and share</b> → <b>Cast…</b><br>' +
+      '<b>Edge:</b> menu → <b>Cast media to device</b><br>' +
+      '<b>Or open in VLC/IINA on your TV</b>',
       8000
     );
   } catch(e) {
     showToast(
-      '<div class="toast-title">📺 CAST TO TV</div>' +
-      'Use your browser\'s built-in cast:<br>' +
-      'Chrome: <kbd>⋮</kbd> → <b>Cast…</b> &nbsp;|&nbsp; Edge: <kbd>⋯</kbd> → <b>Cast media to device</b>',
+      '<div class="toast-title">CAST</div>' +
+      'Use Chrome menu → <b>Save and share</b> → <b>Cast…</b> to cast this tab',
       6000
     );
   }
