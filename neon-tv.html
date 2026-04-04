@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>NEON TV — IPTV Player</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -31,11 +31,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 ::-webkit-scrollbar-thumb:hover{background:#2a2a4a;border-color:var(--cyan)}
 
 /* ── LAYOUT ───────────────────────────────────────────────── */
-#app{display:flex;height:100vh;width:100vw;overflow:hidden}
+#app{display:flex;height:100vh;height:100dvh;width:100vw;overflow:hidden}
 
 /* ── SIDEBAR ──────────────────────────────────────────────── */
 #sidebar{
-  width:var(--sidebar-w);min-width:var(--sidebar-w);height:100vh;
+  width:var(--sidebar-w);min-width:var(--sidebar-w);height:100vh;height:100dvh;
   background:var(--surface);border-right:1px solid rgba(0,229,255,.12);
   display:flex;flex-direction:column;z-index:10;
   transition:margin-left .35s cubic-bezier(.4,0,.2,1);
@@ -102,8 +102,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .stats-bar{padding:4px 18px 8px;font-size:10px;color:var(--text-dim);letter-spacing:1px;display:flex;justify-content:space-between}
 
 /* Channel list */
-.channel-list-container{flex:1;overflow:hidden;position:relative}
-.channel-list{height:100%;overflow-y:auto;overflow-x:hidden;padding:0 8px 60px;scrollbar-gutter:stable}
+.channel-list-container{flex:1;overflow:hidden;position:relative;min-height:0}
+.channel-list{height:100%;overflow-y:auto;overflow-x:hidden;padding:0 8px 20px;scrollbar-gutter:stable;-webkit-overflow-scrolling:touch}
 .channel-list-inner{position:relative}
 
 .ch-item{
@@ -159,8 +159,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* Now-playing bar */
 .now-bar{
-  display:flex;align-items:center;gap:14px;padding:10px 20px;
-  background:var(--surface);border-top:1px solid rgba(0,229,255,.08);min-height:56px;
+  display:flex;align-items:center;gap:10px;padding:8px 12px;
+  background:var(--surface);border-top:1px solid rgba(0,229,255,.08);
+  min-height:52px;flex-shrink:0;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom, 0px));
 }
 .now-logo{width:36px;height:36px;border-radius:4px;object-fit:contain;background:rgba(255,255,255,.04)}
 .now-info{flex:1;overflow:hidden}
@@ -169,11 +171,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .now-status{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--green);letter-spacing:1px}
 .now-status .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease infinite;box-shadow:var(--glow-green)}
 
-.now-controls{display:flex;align-items:center;gap:6px}
+.now-controls{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
 .ctrl-btn{
-  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  width:34px;height:34px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:1px solid rgba(0,229,255,.12);border-radius:var(--radius);
-  color:var(--text);cursor:pointer;font-size:16px;transition:all .2s;
+  color:var(--text);cursor:pointer;font-size:15px;transition:all .2s;flex-shrink:0;
 }
 .ctrl-btn:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-cyan)}
 .ctrl-btn.active{color:var(--magenta);border-color:var(--magenta)}
@@ -250,10 +252,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 /* Responsive */
 @media(max-width:768px){
-  :root{--sidebar-w:300px}
-  #sidebar{position:fixed;left:0;top:0;z-index:100;box-shadow:4px 0 24px rgba(0,0,0,.5)}
+  :root{--sidebar-w:min(300px, 85vw)}
+  #sidebar{position:fixed;left:0;top:0;z-index:100;box-shadow:4px 0 24px rgba(0,0,0,.5);height:100vh;height:100dvh}
   #sidebar.hidden{margin-left:calc(var(--sidebar-w)*-1)}
   .toggle-sidebar{opacity:1}
+  .now-bar{gap:8px;padding:6px 10px;padding-bottom:calc(6px + env(safe-area-inset-bottom, 0px))}
+  .now-logo{width:28px;height:28px}
+  .now-info{min-width:0}
+  .now-name{font-size:12px}
+  .now-status{display:none !important}
+  .ctrl-btn{width:30px;height:30px;font-size:13px}
+  .ctrl-btn.scan-btn{font-size:15px}
+  .volume-wrap{display:none}
+  .player-splash .splash-icon{font-size:48px}
+  .player-splash h2{font-size:14px;letter-spacing:2px}
+  .filters{flex-wrap:wrap}
+  .settings-panel{width:calc(100vw - 32px);right:8px;bottom:60px}
+}
+@media(max-width:480px){
+  .now-bar{flex-wrap:wrap;gap:6px}
+  .now-controls{width:100%;justify-content:center;gap:3px}
+  .ctrl-btn{width:28px;height:28px;font-size:12px}
+  .ctrl-btn.scan-btn{font-size:14px}
 }
 </style>
 </head>
@@ -707,6 +727,13 @@ function playChannel(ch) {
   saveLastChannel(ch);
   renderVisible();
 
+  // On mobile, auto-hide sidebar when a channel is selected
+  if (window.matchMedia("(max-width:768px)").matches) {
+    sidebar.classList.add("hidden");
+    theaterMode = true;
+    theaterBtn.classList.toggle("active", true);
+  }
+
   nowName.textContent = ch.name;
   nowGroup.textContent = [ch.group, ch.country].filter(Boolean).join(" · ") || "—";
   if (ch.logo && ch.logo.startsWith("http")) {
@@ -995,9 +1022,12 @@ favFilter.addEventListener("click", () => {
   favFilter.classList.toggle("active", showFavOnly);
   applyFilters();
 });
-extFilter.addEventListener("click", () => {
+extFilter.addEventListener("click", (e) => {
+  e.stopPropagation();
   hideExternal = !hideExternal;
   extFilter.classList.toggle("active", hideExternal);
+  extFilter.textContent = hideExternal ? "⊘ EXT" : "⊕ EXT";
+  extFilter.title = hideExternal ? "External links hidden — click to show" : "External links shown — click to hide";
   applyFilters();
 });
 
@@ -1099,6 +1129,24 @@ document.addEventListener("keydown", e => {
 });
 
 // ── Init ─────────────────────────────────────────────────
+// On mobile, start with sidebar hidden
+const isMobile = window.matchMedia("(max-width:768px)").matches;
+if (isMobile) {
+  sidebar.classList.add("hidden");
+  theaterMode = true;
+}
+
+// Close sidebar on mobile when clicking outside it
+document.addEventListener("click", e => {
+  if (isMobile && !sidebar.classList.contains("hidden")) {
+    if (!sidebar.contains(e.target) && e.target !== toggleSidebar) {
+      sidebar.classList.add("hidden");
+      theaterMode = true;
+      theaterBtn.classList.toggle("active", theaterMode);
+    }
+  }
+});
+
 (async function init() {
   const last = getLastChannel();
   if (last && last.source && SOURCES[last.source]) {
