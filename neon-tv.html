@@ -148,6 +148,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .player-error p{color:var(--text-dim);font-size:11px}
 .retry-btn{margin-top:12px;padding:8px 20px;background:transparent;border:1px solid rgba(0,229,255,.3);border-radius:var(--radius);color:var(--cyan);cursor:pointer;font-family:var(--font-mono);font-size:12px;letter-spacing:1px;transition:all .2s}
 .retry-btn:hover{background:rgba(0,229,255,.1);box-shadow:var(--glow-cyan)}
+.play-btn{margin-top:16px;width:64px;height:64px;border-radius:50%;background:rgba(0,229,255,.15);border:2px solid var(--cyan);color:var(--cyan);font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;box-shadow:var(--glow-cyan)}
+.play-btn:hover{background:rgba(0,229,255,.25);transform:scale(1.1)}
 
 .player-loading{text-align:center}
 .player-loading .spinner{width:40px;height:40px;border:3px solid rgba(0,229,255,.15);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
@@ -386,6 +388,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="setting-row">
         <span class="setting-label">Clear all favorites</span>
         <button class="setting-btn" id="clearFavBtn">Clear</button>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Export favorites</span>
+        <button class="setting-btn confirm" id="exportFavBtn">Export</button>
+      </div>
+      <div class="setting-row setting-row-full">
+        <span class="setting-label">Import favorites</span>
+        <input type="file" id="importFavFile" accept=".json" style="display:none">
+        <button class="setting-btn confirm" id="importFavBtn">Import</button>
       </div>
     </div>
   </main>
@@ -785,7 +796,7 @@ function startStream(url) {
     hls.on(Hls.Events.MANIFEST_PARSED, (ev, data) => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => {});
+      video.play().catch(() => { showOverlay("paused"); });
       updateQualityOptions(data.levels);
       stopScan();
     });
@@ -817,7 +828,7 @@ function startStream(url) {
     video.addEventListener("loadedmetadata", () => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => {});
+      video.play().catch(() => { showOverlay("paused"); });
       stopScan();
     }, { once: true });
     video.addEventListener("error", () => {
@@ -830,7 +841,7 @@ function startStream(url) {
     video.addEventListener("loadeddata", () => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => {});
+      video.play().catch(() => { showOverlay("paused"); });
       stopScan();
     }, { once: true });
     video.addEventListener("error", () => {
@@ -903,6 +914,8 @@ function showOverlay(type, msg, url) {
     playerOverlay.innerHTML = '<div class="player-error"><h3>⚠ SIGNAL LOST</h3><p>' + escHtml(msg || "Stream unavailable") + '</p><button class="retry-btn">↻ RETRY</button></div>';
   } else if (type === "external") {
     playerOverlay.innerHTML = '<div class="player-error"><h3>↗ EXTERNAL LINK</h3><p>' + escHtml(msg || "") + '</p></div>';
+  } else if (type === "paused") {
+    playerOverlay.innerHTML = '<div class="player-splash"><button class="play-btn" id="playBtn">▶</button><p style="margin-top:10px">TAP TO PLAY</p></div>';
   }
 }
 function hideOverlay() {
@@ -912,6 +925,9 @@ function hideOverlay() {
 playerOverlay.addEventListener("click", e => {
   if (e.target.classList.contains("retry-btn") && currentChannel) {
     playChannel(currentChannel);
+  }
+  if (e.target.classList.contains("play-btn") || e.target.closest(".play-btn")) {
+    video.play().then(() => hideOverlay()).catch(() => {});
   }
 });
 
@@ -992,6 +1008,45 @@ clearFavBtn.addEventListener("click", () => {
   renderVisible();
 });
 
+// Export favorites
+$("exportFavBtn").addEventListener("click", () => {
+  const data = JSON.stringify(favorites, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "neon-tv-favorites.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('<div class="toast-title">EXPORT</div>Favorites exported (' + favorites.length + ' channels)', 3000);
+});
+
+// Import favorites
+const importFavFile = $("importFavFile");
+$("importFavBtn").addEventListener("click", () => importFavFile.click());
+importFavFile.addEventListener("change", () => {
+  const file = importFavFile.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      if (!Array.isArray(imported)) throw new Error("Invalid format");
+      const validUrls = imported.filter(u => typeof u === "string" && /^https?:\/\//.test(u));
+      const merged = [...new Set([...favorites, ...validUrls])];
+      const added = merged.length - favorites.length;
+      favorites = merged;
+      localStorage.setItem("neon_favs", JSON.stringify(favorites));
+      updateNowBarFav();
+      renderVisible();
+      showToast('<div class="toast-title">IMPORT</div>Added ' + added + ' new favorites (' + favorites.length + ' total)', 3000);
+    } catch(e) {
+      showToast('<div class="toast-title">IMPORT ERROR</div>' + escHtml(e.message), 4000);
+    }
+  };
+  reader.readAsText(file);
+  importFavFile.value = "";
+});
+
 // Load custom playlist
 loadCustomBtn.addEventListener("click", () => {
   const url = customUrlInput.value.trim();
@@ -1060,14 +1115,19 @@ function showToast(html, duration) {
 
 // ── Cast to TV ───────────────────────────────────────────
 castBtn.addEventListener("click", async () => {
+  if (!currentChannel) {
+    showToast('<div class="toast-title">📺 CAST</div>Select a channel first', 3000);
+    return;
+  }
+  const streamUrl = currentChannel.url;
+
   // 1) Try Remote Playback API (Chrome over HTTPS / localhost)
   if (video.remote) {
     try {
       await video.remote.prompt();
       return;
     } catch(e) {
-      if (e.name === "NotAllowedError") return; // user dismissed
-      // fall through to guidance
+      if (e.name === "NotAllowedError") return;
     }
   }
   // 2) Try AirPlay picker (Safari)
@@ -1077,26 +1137,25 @@ castBtn.addEventListener("click", async () => {
       return;
     } catch(e) { /* fall through */ }
   }
-  // 3) Try Presentation API
-  if (window.PresentationRequest && currentChannel) {
-    try {
-      const req = new PresentationRequest([currentChannel.url]);
-      await req.start();
-      return;
-    } catch(e) {
-      if (e.name === "NotAllowedError") return;
-      // fall through to guidance
-    }
+  // 3) Copy stream URL to clipboard + guidance
+  try {
+    await navigator.clipboard.writeText(streamUrl);
+    showToast(
+      '<div class="toast-title">📺 CAST TO TV</div>' +
+      'Stream URL copied to clipboard!<br><br>' +
+      '<b>To cast from this browser:</b><br>' +
+      'Chrome: <kbd>⋮</kbd> → <b>Cast…</b> &nbsp;|&nbsp; Edge: <kbd>⋯</kbd> → <b>Cast media to device</b><br><br>' +
+      '<b>Or paste the URL in a cast-capable app</b> (VLC, IINA, etc.)',
+      8000
+    );
+  } catch(e) {
+    showToast(
+      '<div class="toast-title">📺 CAST TO TV</div>' +
+      'Use your browser\'s built-in cast:<br>' +
+      'Chrome: <kbd>⋮</kbd> → <b>Cast…</b> &nbsp;|&nbsp; Edge: <kbd>⋯</kbd> → <b>Cast media to device</b>',
+      6000
+    );
   }
-  // 4) Fallback: show guidance toast
-  showToast(
-    '<div class="toast-title">📺 CAST TO TV</div>' +
-    'Use your browser\'s built-in cast:<br>' +
-    '<b>Chrome:</b> <kbd>⋮</kbd> menu → <b>Cast…</b> or right-click the video<br>' +
-    '<b>Edge:</b> <kbd>⋯</kbd> menu → <b>Cast media to device</b><br>' +
-    '<b>Safari:</b> Click the AirPlay icon in the video controls',
-    8000
-  );
 });
 
 // ── Picture-in-Picture ───────────────────────────────────
