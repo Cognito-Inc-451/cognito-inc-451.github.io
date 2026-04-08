@@ -366,6 +366,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
         </div>
         <button class="ctrl-btn scan-btn" id="prevChBtn" title="Scan previous (P)">⏮</button>
+        <button class="ctrl-btn" id="stopBtn" title="Stop">⏹</button>
+        <button class="ctrl-btn" id="playPauseBtn" title="Play/Pause">▶</button>
         <button class="ctrl-btn scan-btn" id="nextChBtn" title="Scan next (N)">⏭</button>
         <button class="ctrl-btn" id="favNowBtn" title="Favorite">☆</button>
         <button class="ctrl-btn cast-btn" id="castBtn" title="Cast to TV"><svg viewBox="0 0 24 24"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg></button>
@@ -534,6 +536,8 @@ const castBtn       = $("castBtn");
 const pipBtn        = $("pipBtn");
 const sourceSelect  = $("sourceSelect");
 const prevChBtn     = $("prevChBtn");
+const stopBtn       = $("stopBtn");
+const playPauseBtn  = $("playPauseBtn");
 const nextChBtn     = $("nextChBtn");
 const extFilter     = $("extFilter");
 
@@ -805,7 +809,10 @@ function startStream(url) {
     hls.on(Hls.Events.MANIFEST_PARSED, (ev, data) => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => { showOverlay("paused"); });
+      video.play().then(() => {
+        playPauseBtn.textContent = "⏸";
+        playPauseBtn.title = "Pause";
+      }).catch(() => { showOverlay("paused"); });
       updateQualityOptions(data.levels);
       stopScan();
     });
@@ -837,7 +844,10 @@ function startStream(url) {
     video.addEventListener("loadedmetadata", () => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => { showOverlay("paused"); });
+      video.play().then(() => {
+        playPauseBtn.textContent = "⏸";
+        playPauseBtn.title = "Pause";
+      }).catch(() => { showOverlay("paused"); });
       stopScan();
     }, { once: true });
     video.addEventListener("error", () => {
@@ -850,7 +860,10 @@ function startStream(url) {
     video.addEventListener("loadeddata", () => {
       hideOverlay();
       nowStatus.style.display = "flex";
-      video.play().catch(() => { showOverlay("paused"); });
+      video.play().then(() => {
+        playPauseBtn.textContent = "⏸";
+        playPauseBtn.title = "Pause";
+      }).catch(() => { showOverlay("paused"); });
       stopScan();
     }, { once: true });
     video.addEventListener("error", () => {
@@ -1095,18 +1108,44 @@ extFilter.addEventListener("click", (e) => {
   applyFilters();
 });
 
-// ── Prev / Next scan buttons ─────────────────────────────
+// ── Prev / Stop / Play/Pause / Next buttons ─────────────────────────────
 prevChBtn.addEventListener("click", () => {
   if (scanning && scanDirection === -1) { stopScan(); return; }
   stopScan();
   scanChannel(-1);
+});
+stopBtn.addEventListener("click", () => {
+  if (hls) { hls.destroy(); hls = null; }
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+  showOverlay("splash");
+});
+playPauseBtn.addEventListener("click", () => {
+  if (video.paused) {
+    video.play().catch(() => {});
+    playPauseBtn.textContent = "⏸";
+    playPauseBtn.title = "Pause";
+  } else {
+    video.pause();
+    playPauseBtn.textContent = "▶";
+    playPauseBtn.title = "Play";
+  }
 });
 nextChBtn.addEventListener("click", () => {
   if (scanning && scanDirection === 1) { stopScan(); return; }
   stopScan();
   scanChannel(1);
 });
-
+video.addEventListener("pause", () => {
+  playPauseBtn.textContent = "▶";
+  playPauseBtn.title = "Play";
+});
+video.addEventListener("playing", () => {
+  playPauseBtn.textContent = "⏸";
+  playPauseBtn.title = "Pause";
+});
+  
 // ── Toast helper ─────────────────────────────────────────
 let toastEl = null;
 let toastTimer = null;
