@@ -366,7 +366,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
         </div>
         <button class="ctrl-btn scan-btn" id="prevChBtn" title="Scan previous (P)">⏮</button>
-        <button class="ctrl-btn" id="stopBtn" title="Stop">⏹</button>
         <button class="ctrl-btn" id="playPauseBtn" title="Play/Pause">▶</button>
         <button class="ctrl-btn scan-btn" id="nextChBtn" title="Scan next (N)">⏭</button>
         <button class="ctrl-btn" id="favNowBtn" title="Favorite">☆</button>
@@ -536,7 +535,6 @@ const castBtn       = $("castBtn");
 const pipBtn        = $("pipBtn");
 const sourceSelect  = $("sourceSelect");
 const prevChBtn     = $("prevChBtn");
-const stopBtn       = $("stopBtn");
 const playPauseBtn  = $("playPauseBtn");
 const nextChBtn     = $("nextChBtn");
 const extFilter     = $("extFilter");
@@ -1113,13 +1111,6 @@ prevChBtn.addEventListener("click", () => {
   if (scanning && scanDirection === -1) { stopScan(); return; }
   stopScan();
   scanChannel(-1);
-});
-stopBtn.addEventListener("click", () => {
-  if (hls) { hls.destroy(); hls = null; }
-  video.pause();
-  video.removeAttribute("src");
-  video.load();
-  showOverlay("splash");
 });
 playPauseBtn.addEventListener("click", () => {
   if (video.paused) {
