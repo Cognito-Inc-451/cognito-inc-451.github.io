@@ -1114,13 +1114,9 @@ prevChBtn.addEventListener("click", () => {
 });
 playPauseBtn.addEventListener("click", () => {
   if (video.paused) {
-    video.play().catch(() => {});
-    playPauseBtn.textContent = "⏸";
-    playPauseBtn.title = "Pause";
+    video.play().then(() => { hideOverlay(); }).catch(() => {});
   } else {
     video.pause();
-    playPauseBtn.textContent = "▶";
-    playPauseBtn.title = "Play";
   }
 });
 nextChBtn.addEventListener("click", () => {
@@ -1133,6 +1129,7 @@ video.addEventListener("pause", () => {
   playPauseBtn.title = "Play";
 });
 video.addEventListener("playing", () => {
+  hideOverlay();
   playPauseBtn.textContent = "⏸";
   playPauseBtn.title = "Pause";
 });
@@ -1317,6 +1314,10 @@ document.addEventListener("click", e => {
   if (last && last.url) {
     const ch = allChannels.find(c => c.url === last.url);
     if (ch) playChannel(ch);
+  } else {
+    // First run: auto-play Retro Crush
+    const retroCrush = allChannels.find(c => /retro\s*crush/i.test(c.name));
+    if (retroCrush) playChannel(retroCrush);
   }
 })();
 
