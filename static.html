@@ -1,0 +1,3439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>⚡ LINK</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<!-- Gun.js disabled (CHAT_ENABLED=false). Uncomment to enable chat:
+<script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gun/lib/webrtc.js"></script>
+-->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --neon1:#00ffd5;--neon2:#ff00aa;--neon3:#f0ff00;--neon4:#0088ff;
+  --bg:#050508;--surface:#0a0a12;--border:#1a1a2e;
+  --text:#9a9ab0;--text-hi:#e0e0f0;
+  --bar-h:52px;--panel-w:340px;
+  --glow1:0 0 8px var(--neon1),0 0 20px rgba(0,255,213,.15);
+  --glow2:0 0 8px var(--neon2),0 0 20px rgba(255,0,170,.15);
+  --glow3:0 0 8px var(--neon3),0 0 20px rgba(240,255,0,.15);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Share Tech Mono',monospace;font-size:13px}
+button,select,input{font-family:inherit;font-size:inherit;color:var(--text-hi);background:transparent;border:1px solid var(--border);outline:none;cursor:pointer}
+button:hover,select:hover{border-color:var(--neon1);box-shadow:var(--glow1)}
+button:active{transform:scale(.96)}
+select{appearance:none;-webkit-appearance:none;padding:4px 24px 4px 10px;border-radius:3px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a9ab0'/%3E%3C/svg%3E") no-repeat right 8px center/8px}
+select option{background:#111;color:#ddd}
+input[type=range]{-webkit-appearance:none;appearance:none;height:3px;border:none;border-radius:2px;background:var(--border);cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--neon1);border:none;box-shadow:var(--glow1);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--neon1);border:none;box-shadow:var(--glow1);cursor:pointer}
+input[type=color]{width:32px;height:24px;border-radius:3px;padding:0;cursor:pointer;border:1px solid var(--border)}
+input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+input[type=color]::-webkit-color-swatch{border:none;border-radius:2px}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--neon1)}
+
+/* ═══ RADIO BAR ═══ */
+#radio-bar{
+  position:fixed;top:0;left:0;right:0;height:var(--bar-h);z-index:100;
+  display:flex;align-items:center;gap:8px;padding:0 12px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(10,10,18,.97),rgba(5,5,8,.95));
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+}
+#radio-bar.collapsed{transform:translateY(-100%)}
+#bar-toggle{
+  position:fixed;top:var(--bar-h);left:50%;transform:translateX(-50%);
+  z-index:101;width:44px;height:20px;border:none;padding:0;cursor:pointer;
+  background:rgba(10,10,18,.92);border-radius:0 0 10px 10px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--neon1);font-size:11px;line-height:1;
+  border:1px solid rgba(0,255,213,.2);border-top:none;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:top .3s cubic-bezier(.4,0,.2,1),opacity .2s;
+  opacity:.55;
+  text-shadow:0 0 6px var(--neon1);
+}
+#bar-toggle{display:none}
+#bar-toggle:hover{opacity:1;border-color:var(--neon1);box-shadow:0 2px 8px rgba(0,255,213,.3)}
+#radio-bar.collapsed~#bar-toggle{top:0}
+
+/* ═══ BAR PARTICLES ═══ */
+#bar-particles{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;overflow:hidden}
+#bar-particles .bp{position:absolute;width:2px;height:2px;border-radius:50%;background:#00ff66;opacity:0;animation:barParticle linear infinite}
+@keyframes barParticle{0%{opacity:0;transform:translateY(0) scale(.5)}15%{opacity:.7}85%{opacity:.4}100%{opacity:0;transform:translateY(-30px) scale(.2)}}
+/* ═══ ORB ═══ */
+#orb-wrap{width:28px;height:28px;flex-shrink:0;cursor:pointer;position:relative}
+#orb-canvas{width:28px;height:28px;border-radius:50%;display:block}
+.ctrl-group{display:flex;align-items:center;gap:4px}
+.ctrl-group button{width:28px;height:28px;border-radius:3px;font-size:14px;display:flex;align-items:center;justify-content:center;padding:0}
+#station-select{min-width:140px;max-width:200px;font-size:12px}
+#play-btn{width:36px;height:36px;border-radius:50%;font-size:16px;border-width:2px;border-color:var(--neon1);color:var(--neon1);box-shadow:var(--glow1);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;transition:all .2s}
+#play-btn:hover{background:rgba(0,255,213,.1);transform:scale(1.08)}
+#play-btn.playing{border-color:var(--neon2);color:var(--neon2);box-shadow:var(--glow2)}
+#now-playing{flex:1;min-width:0;overflow:hidden;padding:0 8px}
+#track-info{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--text-hi)}
+#sync-badge{font-size:9px;color:var(--neon3);text-shadow:var(--glow3);margin-left:6px;vertical-align:middle}
+#progress-wrap{height:3px;background:var(--border);border-radius:2px;margin-top:4px;cursor:pointer;position:relative}
+#progress-fill{height:100%;background:var(--neon1);border-radius:2px;width:0%;transition:width .3s linear;box-shadow:0 0 6px var(--neon1)}
+.action-group{display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0}
+.action-group button,.action-group label{width:30px;height:30px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:15px;padding:0;cursor:pointer;border:1px solid var(--border)}
+.action-group label{position:relative}
+#dl-btn.hidden{display:none}
+#rec-btn.recording{color:#ff3333;border-color:#ff3333;box-shadow:0 0 8px #ff3333;animation:pulse-rec 1s infinite}
+@keyframes pulse-rec{0%,100%{opacity:1}50%{opacity:.5}}
+#vol-wrap{display:flex;align-items:center;gap:4px;margin-left:4px}
+#vol-wrap input{width:60px}
+#vol-icon{font-size:14px;cursor:pointer;color:var(--text)}
+
+/* ═══ CANVAS + IFRAMES ═══ */
+#viz{position:fixed;top:var(--bar-h);left:0;right:0;bottom:0;width:100%;height:calc(100% - var(--bar-h));display:block;cursor:default;z-index:1;
+  transition:top .3s cubic-bezier(.4,0,.2,1),height .3s cubic-bezier(.4,0,.2,1);
+}
+.ext-frame{position:fixed;top:var(--bar-h);left:0;right:0;bottom:0;width:100%;height:calc(100% - var(--bar-h));border:none;z-index:1;background:#000;
+  transition:top .3s cubic-bezier(.4,0,.2,1),height .3s cubic-bezier(.4,0,.2,1);
+  display:none;
+}
+.ext-frame.active{display:block}
+#radio-bar.collapsed~#viz,
+#radio-bar.collapsed~.ext-frame,
+#radio-bar.collapsed~.ext-frame.active{top:0;height:100%}
+body.ai-view-active .ext-frame.active{top:0;height:100%}
+
+/* ═══ FLOATING BTNS ═══ */
+.float-btn{
+  position:fixed;z-index:110;width:34px;height:34px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;
+  border:1px solid var(--border);background:rgba(5,5,8,.7);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:all .25s;opacity:.5;
+}
+.float-btn:hover{opacity:1;border-color:var(--neon1);box-shadow:var(--glow1)}
+.float-btn:focus{outline:none}
+.float-btn:active{outline:none}
+#settings-btn{
+  font-size:14px;padding:2px 6px;border-radius:4px;background:rgba(5,5,8,.5);
+  border:1px solid var(--border);color:var(--text);cursor:pointer;opacity:.5;transition:all .25s;
+  flex-shrink:0;margin-left:auto;
+}
+#settings-btn:hover{opacity:1;border-color:var(--neon1);color:var(--neon1)}
+#sfx-btn.hidden-view,#fs-btn.hidden-view{display:none}
+#sfx-btn{bottom:14px;right:56px}
+#fs-btn{bottom:14px;right:14px}
+
+/* ═══ SFX PANEL ═══ */
+#sfx-panel{
+  position:fixed;bottom:56px;right:56px;width:240px;z-index:112;
+  background:rgba(8,8,16,.96);border:1px solid var(--border);border-radius:8px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  transform:scale(0);transform-origin:bottom right;transition:transform .2s cubic-bezier(.4,0,.2,1);
+  padding:12px;
+}
+#sfx-panel.open{transform:scale(1)}
+#sfx-panel h3{
+  font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--neon1);text-shadow:var(--glow1);margin:0 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border);
+}
+/* Sync checkboxes inline */
+.sync-flag{width:12px;height:12px;accent-color:var(--neon3);cursor:pointer;flex-shrink:0;margin-left:2px}
+.sync-flag:checked{box-shadow:0 0 4px var(--neon3)}
+/* Link TV view */
+#tv-wrap{position:fixed;top:var(--bar-h);left:0;right:0;bottom:0;z-index:1;display:none;background:#000;overflow:hidden}
+#tv-wrap.active{display:block}
+#tv-overlay{position:absolute;inset:0;z-index:2;pointer-events:none;
+  border:12px solid transparent;border-image:linear-gradient(135deg,#0ff3,#f0f3,#ff03,#0ff3) 1;
+  box-shadow:inset 0 0 60px rgba(0,255,213,.08),inset 0 0 120px rgba(0,0,0,.5);
+}
+#tv-overlay::before{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,213,.03) 2px,rgba(0,255,213,.03) 4px);
+  pointer-events:none;animation:tvScan 8s linear infinite;
+}
+@keyframes tvScan{0%{transform:translateY(0)}100%{transform:translateY(4px)}}
+#tv-overlay::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.6));pointer-events:none;
+}
+#tv-video{width:100%;height:100%;object-fit:contain;background:#000;cursor:pointer}
+#tv-info{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:3;
+  font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:var(--neon1);
+  text-shadow:var(--glow1);background:rgba(0,0,0,.7);padding:4px 16px;border-radius:4px;
+  border:1px solid rgba(0,255,213,.2);white-space:nowrap;
+  opacity:1;transition:opacity 1.5s;pointer-events:none;
+}
+#tv-info.hidden{opacity:0}
+/* TV download button */
+#tv-dl-btn{position:absolute;top:12px;right:12px;z-index:4;
+  background:rgba(0,0,0,.5);border:1px solid rgba(0,255,213,.2);border-radius:4px;
+  color:var(--neon1);font-size:14px;padding:4px 8px;cursor:pointer;opacity:0;
+  transition:opacity .2s;font-family:'Orbitron',sans-serif;
+}
+#tv-wrap:hover #tv-dl-btn{opacity:.4}
+#tv-dl-btn:hover{opacity:1 !important}
+/* Skip track buttons in radio bar */
+#skip-prev,#skip-next{font-size:11px;padding:2px 4px;min-width:0;
+  display:none;opacity:.7}
+#skip-prev:hover,#skip-next:hover{opacity:1}
+.playlist-mode #skip-prev,.playlist-mode #skip-next{display:inline-block}
+#radio-bar.collapsed~#tv-wrap.active{top:0;height:100%}
+
+
+/* ═══ AI MENU ═══ */
+#ai-menu-wrap{position:relative}
+#curve-menu-wrap{position:relative}
+#ai-menu,#curve-menu{
+  position:absolute;right:calc(100% + 10px);top:50%;transform:translateY(-50%);
+  background:rgba(8,8,16,.96);border:1px solid var(--border);border-radius:10px;
+  padding:6px;min-width:180px;display:none;flex-direction:column;gap:2px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 4px 24px rgba(0,0,0,.6),0 0 1px rgba(0,255,213,.3);
+}
+#ai-menu.open,#curve-menu.open{display:flex}
+.ai-menu-label{
+  padding:4px 10px 2px;font-size:8px;letter-spacing:2px;font-family:'Orbitron',sans-serif;
+  color:var(--text);opacity:.4;text-transform:uppercase;
+}
+.ai-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;
+  cursor:pointer;transition:background .15s;border:none;background:none;
+  color:var(--text-hi);font-size:11px;font-family:'Share Tech Mono',monospace;
+  white-space:nowrap;text-align:left;
+}
+.ai-item:hover{background:rgba(0,255,213,.08);color:var(--neon1);box-shadow:none}
+.ai-item .ai-icon{font-size:16px;width:22px;text-align:center;flex-shrink:0}
+.ai-item .ai-icon svg{width:16px;height:16px;vertical-align:middle}
+.ai-sep{height:1px;background:var(--border);margin:3px 8px}
+/* AI view active state */
+body.ai-view-active #radio-bar{transform:translateY(-100%)}
+body.ai-view-active #fs-btn,
+body.ai-view-active #settings-btn,
+body.ai-view-active #sfx-btn,
+
+body.ai-view-active #settings-panel{transform:translateX(100%) !important}
+body.ai-view-active #sfx-panel{transform:scale(0) !important}
+
+body.ai-view-active #tv-wrap{display:none}
+
+/* ═══ VIEW TOGGLE ═══ */
+#view-btns{
+  position:fixed;top:50%;right:14px;z-index:110;
+  transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:8px;
+  opacity:.65;transition:opacity .25s;
+}
+#view-btns:hover{opacity:1}
+.view-btn{
+  width:36px;height:36px;border-radius:50%;font-size:14px;padding:0;
+  border:1px solid rgba(255,255,255,.15);background:rgba(5,5,8,.75);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transition:all .2s;color:var(--text-hi);
+  text-shadow:0 0 4px rgba(255,255,255,.2);
+}
+.view-btn:hover{border-color:var(--neon1);color:var(--neon1);background:rgba(0,255,213,.08);transform:scale(1.1)}
+.view-btn.active{border-color:var(--neon1);color:var(--neon1);box-shadow:var(--glow1);background:rgba(0,255,213,.12)}
+.view-btn{position:relative}
+.view-label{
+  position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);
+  white-space:nowrap;font-size:10px;letter-spacing:1px;font-family:'Orbitron',sans-serif;
+  color:var(--neon1);text-shadow:0 0 6px var(--neon1);pointer-events:none;
+  opacity:0;transition:opacity .25s ease;
+}
+.view-btn:hover .view-label{opacity:1}
+
+/* ═══ SETTINGS PANEL ═══ */
+#settings-panel{
+  position:fixed;top:var(--bar-h);right:0;bottom:0;width:var(--panel-w);z-index:112;
+  background:rgba(8,8,16,.96);border-left:1px solid var(--border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  overflow-y:auto;overflow-x:hidden;padding:16px;
+}
+#settings-panel.open{transform:translateX(0)}
+#settings-panel h3{
+  font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--neon1);text-shadow:var(--glow1);margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+#settings-panel h3:first-child{margin-top:0}
+.setting-row{display:flex;align-items:center;justify-content:space-between;margin:8px 0;gap:8px}
+.setting-row label{flex-shrink:0;font-size:11px;color:var(--text)}
+.setting-row input[type=range]{flex:1;min-width:60px}
+.setting-row .val{min-width:32px;text-align:right;font-size:10px;color:var(--neon1)}
+.setting-row select{flex:1;font-size:11px}
+.color-row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.color-row label{font-size:11px;flex:1}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin:8px 0}
+.toggle-row label{font-size:11px}
+.toggle{position:relative;width:36px;height:18px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle span{position:absolute;inset:0;background:var(--border);border-radius:9px;cursor:pointer;transition:all .2s}
+.toggle span::before{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--text);transition:all .2s}
+.toggle input:checked+span{background:var(--neon1);box-shadow:0 0 8px var(--neon1)}
+.toggle input:checked+span::before{transform:translateX(18px);background:#fff}
+.preset-row{display:flex;gap:6px;margin:6px 0;flex-wrap:wrap}
+.preset-row button{font-size:10px;padding:4px 10px;border-radius:3px;flex:1;min-width:0}
+.preset-row button:hover{background:rgba(0,255,213,.1)}
+#preset-select{width:100%;margin:6px 0;font-size:11px}
+#preset-name{width:100%;padding:4px 8px;border-radius:3px;font-size:11px;background:transparent;border:1px solid var(--border);color:var(--text-hi);margin:6px 0}
+.close-panel{position:absolute;top:12px;right:12px;width:24px;height:24px;border:none;font-size:16px;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:3px}
+.close-panel:hover{color:var(--neon2);border:1px solid var(--neon2)}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:700px){
+  :root{--bar-h:48px;--panel-w:100vw}
+  #radio-bar{gap:4px;padding:0 6px;font-size:11px}
+  #station-select{min-width:90px;max-width:130px;font-size:10px}
+  #now-playing{display:none}
+  .action-group{gap:4px}
+  #vol-wrap input{width:40px}
+}
+@media(max-width:400px){
+  .brand{font-size:11px !important;letter-spacing:1px !important}
+}
+
+/* ═══ FULLSCREEN ═══ */
+.fs-active #radio-bar{transform:translateY(-100%)}
+.fs-active #radio-bar.show-in-fs{transform:translateY(0)}
+.fs-active #bar-toggle{top:0}
+.fs-active #radio-bar.show-in-fs~#bar-toggle{top:var(--bar-h)}
+.fs-active #viz{top:0;height:100%}
+.fs-active .ext-frame.active{top:0;height:100%}
+.fs-active #tv-wrap.active{top:0;height:100%}
+.fs-active .float-btn,.fs-active #view-btns{opacity:.2}
+.fs-active .float-btn:hover,.fs-active #view-btns:hover{opacity:1}
+
+/* Brand flash effect */
+.brand-flash{animation:brandFlash .4s ease-out!important}
+@keyframes brandFlash{0%{filter:brightness(2.5) saturate(3) contrast(2)}100%{filter:brightness(1) saturate(1) contrast(1)}}
+
+/* ═══ CHAT SIDEBAR ═══ */
+#chat-panel{
+  position:fixed;top:var(--bar-h);left:0;bottom:0;width:340px;z-index:115;
+  background:rgba(8,8,16,.97);border-right:1px solid var(--border);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;font-size:12px;
+}
+#chat-panel.open{transform:translateX(0)}
+#chat-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+#chat-header h3{
+  font-family:'Orbitron',sans-serif;font-size:11px;letter-spacing:2px;
+  color:#00ff66;text-shadow:0 0 8px rgba(0,255,102,.3);margin:0;
+}
+#chat-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0}
+.chat-tab{
+  flex:1;padding:6px 0;text-align:center;cursor:pointer;font-size:10px;letter-spacing:1px;
+  color:var(--text);border-bottom:2px solid transparent;transition:all .2s;
+  font-family:'Orbitron',sans-serif;
+}
+.chat-tab:hover{color:var(--text-hi)}
+.chat-tab.active{color:#00ff66;border-bottom-color:#00ff66;text-shadow:0 0 6px rgba(0,255,102,.3)}
+#chat-messages{flex:1;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+#chat-dm-list{flex:1;overflow-y:auto;padding:8px 12px;display:none;flex-direction:column;gap:4px}
+#chat-dm-thread{flex:1;overflow-y:auto;padding:8px 12px;display:none;flex-direction:column;gap:4px}
+.chat-msg{
+  padding:4px 0;word-wrap:break-word;line-height:1.4;
+}
+.chat-msg .cm-time{color:var(--text);opacity:.4;font-size:9px;margin-right:4px}
+.chat-msg .cm-name{color:#00ff66;font-weight:bold;margin-right:4px;cursor:pointer;font-size:11px}
+.chat-msg .cm-name:hover{text-decoration:underline}
+.chat-msg .cm-text{color:var(--text-hi)}
+.chat-sys{color:var(--neon1);font-style:italic;opacity:.6;font-size:10px;padding:2px 0}
+.dm-item{
+  display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;
+  border-radius:4px;transition:background .15s;
+}
+.dm-item:hover{background:rgba(0,255,102,.05)}
+.dm-item .dm-name{color:#00ff66;font-weight:bold;flex:1}
+.dm-item .dm-preview{color:var(--text);font-size:10px;opacity:.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.dm-item .dm-time{color:var(--text);font-size:9px;opacity:.4}
+.dm-back{
+  padding:6px 12px;border-bottom:1px solid var(--border);cursor:pointer;
+  color:var(--neon1);font-size:11px;display:none;flex-shrink:0;
+}
+.dm-back:hover{background:rgba(0,255,213,.05)}
+#chat-input-area{
+  display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;
+}
+#chat-input{
+  flex:1;padding:6px 10px;border-radius:4px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);color:var(--text-hi);font-size:12px;
+}
+#chat-input:focus{border-color:#00ff66;box-shadow:0 0 6px rgba(0,255,102,.15)}
+#chat-send{
+  padding:6px 14px;border-radius:4px;border:1px solid #00ff66;
+  color:#00ff66;font-size:11px;font-family:'Orbitron',sans-serif;letter-spacing:1px;
+}
+#chat-send:hover{background:rgba(0,255,102,.1);box-shadow:0 0 8px rgba(0,255,102,.2)}
+#chat-name-area{
+  padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;
+  display:flex;flex-direction:column;gap:6px;
+}
+#chat-name-row{display:flex;gap:6px;align-items:center}
+#chat-name-input{
+  flex:1;padding:5px 8px;border-radius:4px;border:1px solid var(--border);
+  background:rgba(255,255,255,.03);color:var(--text-hi);font-size:11px;
+}
+#chat-name-input:focus{border-color:#00ff66}
+#chat-name-set{
+  padding:5px 10px;border-radius:4px;border:1px solid var(--border);
+  color:var(--text-hi);font-size:10px;cursor:pointer;
+}
+#chat-remember-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text)}
+#chat-remember-row input{accent-color:#00ff66}
+.chat-online{font-size:10px;color:var(--text);opacity:.5}
+.dm-delete{
+  width:22px;height:22px;border-radius:4px;border:1px solid transparent;
+  color:var(--text);opacity:.3;font-size:12px;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;flex-shrink:0;padding:0;
+  transition:all .15s;background:transparent;
+}
+.dm-delete:hover{opacity:1;color:#ff4444;border-color:#ff4444;box-shadow:none}
+#chat-privacy{
+  padding:8px 12px;font-size:9px;color:var(--text);opacity:.4;line-height:1.4;
+  border-top:1px solid var(--border);flex-shrink:0;
+}
+#chat-privacy a{color:var(--neon1);text-decoration:none}
+/* Emoji picker */
+#emoji-btn{
+  width:32px;height:32px;border-radius:4px;border:1px solid var(--border);
+  font-size:18px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;padding:0;flex-shrink:0;background:transparent;
+  transition:all .15s;
+}
+#emoji-btn:hover{border-color:#00ff66;box-shadow:0 0 6px rgba(0,255,102,.15)}
+#emoji-picker{
+  position:absolute;bottom:100%;left:0;right:0;
+  background:rgba(8,8,16,.98);border:1px solid var(--border);border-bottom:none;
+  border-radius:8px 8px 0 0;display:none;flex-direction:column;
+  height:320px;overflow:hidden;
+}
+#emoji-picker.open{display:flex}
+#emoji-area{display:flex;flex-direction:column;flex:1;overflow:hidden}
+#emoji-tabs{
+  display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;
+  overflow-x:auto;padding:0 4px;
+}
+.emoji-tab{
+  padding:6px 8px;font-size:16px;cursor:pointer;flex-shrink:0;
+  opacity:.5;transition:opacity .15s;border:none;background:none;
+  border-bottom:2px solid transparent;
+}
+.emoji-tab:hover{opacity:.8;box-shadow:none}
+.emoji-tab.active{opacity:1;border-bottom-color:#00ff66}
+#emoji-grid{
+  display:grid;grid-template-columns:repeat(8,1fr);gap:2px;
+  padding:8px;overflow-y:auto;flex:1;
+}
+.emoji-item{
+  font-size:22px;text-align:center;cursor:pointer;padding:4px 0;
+  border-radius:4px;transition:background .1s;border:none;
+  background:none;line-height:1.3;
+}
+.emoji-item:hover{background:rgba(0,255,102,.1);box-shadow:none}
+#emoji-search{
+  padding:6px 10px;border:none;border-bottom:1px solid var(--border);
+  background:transparent;color:var(--text-hi);font-size:11px;
+  font-family:inherit;outline:none;
+}
+/* Picker mode tabs (emoji vs stickers) */
+#picker-mode{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.picker-mode-tab{
+  flex:1;padding:5px 0;text-align:center;font-size:9px;letter-spacing:1px;
+  font-family:'Orbitron',sans-serif;color:var(--text);cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .15s;border:none;background:none;
+}
+.picker-mode-tab:hover{color:var(--text-hi);box-shadow:none}
+.picker-mode-tab.active{color:#00ff66;border-bottom-color:#00ff66}
+/* Sticker grid */
+#sticker-area{display:none;flex-direction:column;flex:1;overflow:hidden}
+#sticker-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;padding:0 4px;flex-shrink:0}
+.sticker-tab{
+  padding:5px 8px;font-size:14px;cursor:pointer;flex-shrink:0;
+  opacity:.5;transition:opacity .15s;border:none;background:none;
+  border-bottom:2px solid transparent;
+}
+.sticker-tab:hover{opacity:.8;box-shadow:none}
+.sticker-tab.active{opacity:1;border-bottom-color:#00ff66}
+#sticker-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+  padding:8px;overflow-y:auto;flex:1;
+}
+.sticker-item{
+  font-size:36px;text-align:center;cursor:pointer;padding:8px 4px;
+  border-radius:6px;transition:all .15s;border:none;background:none;
+  line-height:1.2;position:relative;
+}
+.sticker-item:hover{background:rgba(0,255,102,.08);transform:scale(1.1);box-shadow:none}
+.sticker-fav{
+  position:absolute;top:2px;right:2px;font-size:10px;opacity:0;
+  cursor:pointer;transition:opacity .15s;
+}
+.sticker-item:hover .sticker-fav{opacity:.6}
+.sticker-fav.is-fav{opacity:1;color:#ffcc00}
+/* Sticker in chat message */
+.chat-sticker{font-size:48px;line-height:1.1;display:block;padding:4px 0}
+@media(max-width:700px){#chat-panel{width:100vw}}
+</style>
+</head>
+<body>
+<!-- Two audio elements for crossfade (Web Audio connected — CORS sources) -->
+<audio id="audio-a" preload="auto"></audio>
+<audio id="audio-b" preload="auto"></audio>
+<!-- Raw audio element for non-CORS playlist tracks (not connected to Web Audio) -->
+<audio id="audio-raw" preload="auto"></audio>
+
+<!-- ═══ RADIO BAR ═══ -->
+<header id="radio-bar">
+  <div id="bar-particles"></div>
+  <div id="orb-wrap" title="LINK"><canvas id="orb-canvas" width="56" height="56"></canvas></div>
+  <select id="station-select"></select>
+  <div class="ctrl-group">
+    <button id="prev-station" title="Previous station">◀</button>
+    <button id="next-station" title="Next station">▶</button>
+  </div>
+  <button id="play-btn" title="Play">▶</button>
+  <button id="skip-prev" title="Previous track">⏮</button>
+  <button id="skip-next" title="Next track">⏭</button>
+  <div id="now-playing">
+    <span id="track-info">Select a station to begin</span>
+    <div id="progress-wrap"><div id="progress-fill"></div></div>
+  </div>
+  <div class="action-group">
+    <button id="rec-btn" title="Record">⏺</button>
+    <label title="Load local audio file">📁<input type="file" id="local-file" accept="audio/*" hidden></label>
+    <div id="vol-wrap">
+      <span id="vol-icon">🔊</span>
+      <input type="range" id="volume" min="0" max="100" value="80" title="Volume">
+    </div>
+  </div>
+  <button id="settings-btn" title="Settings">⚙</button>
+</header>
+
+<!-- ═══ VISUALIZER ═══ -->
+<canvas id="viz"></canvas>
+<iframe id="frame-neon-tv" class="ext-frame" allowfullscreen></iframe>
+<iframe id="frame-curve" class="ext-frame" allowfullscreen></iframe>
+<iframe id="frame-retro" class="ext-frame" allowfullscreen></iframe>
+<!-- Aligned News iframe removed -->
+<iframe id="frame-ai" class="ext-frame" allowfullscreen></iframe>
+<!-- Archive TV -->
+<div id="tv-wrap">
+  <video id="tv-video" preload="auto" controls></video>
+  <div id="tv-overlay"></div>
+  <div id="tv-info"></div>
+  <button id="tv-dl-btn" title="Download video">⤓</button>
+</div>
+<button id="bar-toggle" title="Toggle bar">▼</button>
+
+<!-- ═══ FLOATING BUTTONS ═══ -->
+<div id="view-btns">
+  <button class="view-btn active" id="radio-toggle-btn" title="">📻<span class="view-label">Radio</span></button>
+  <button class="view-btn active" data-view="viz" title="">◈<span class="view-label">Visualizer</span></button>
+  <button class="view-btn" data-view="linktv" title="">📼<span class="view-label">Archive TV</span></button>
+  <button class="view-btn" data-view="neon-tv" title="">📺<span class="view-label">Neon TV</span></button>
+  <div id="curve-menu-wrap">
+    <button class="view-btn" id="curve-menu-btn" title="">🕹️<span class="view-label">Games</span></button>
+    <div id="curve-menu">
+      <button class="ai-item" data-view="curve"><span class="ai-icon">〰</span>Claude Curve</button>
+      <button class="ai-item" data-view="retro"><span class="ai-icon">👾</span>Retro</button>
+    </div>
+  </div>
+  <!-- Aligned News removed: was data-view="news" -->
+  <div id="ai-menu-wrap">
+    <button class="view-btn" id="ai-menu-btn" title="">🤖<span class="view-label">AI</span></button>
+    <div id="ai-menu">
+      <div class="ai-menu-label">Local AI</div>
+      <button class="ai-item" data-ai="playground"><span class="ai-icon">🧪</span>AI Playground</button>
+      <button class="ai-item" data-ai="storytellers"><span class="ai-icon">📖</span>Storytellers</button>
+      <button class="ai-item" data-ai="glimpse"><span class="ai-icon">👁️</span>Glimpse</button>
+      <div class="ai-sep"></div>
+      <div class="ai-menu-label">AI Services ↗</div>
+      <button class="ai-item" data-ai="claude" data-external><span class="ai-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></span>Claude</button>
+      <button class="ai-item" data-ai="grok" data-external><span class="ai-icon"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1"/><circle cx="12" cy="12" r="2.5"/></svg></span>Grok</button>
+      <button class="ai-item" data-ai="chatgpt" data-external><span class="ai-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10"/><path d="M12 2a15.3 15.3 0 0 0-4 10 15.3 15.3 0 0 0 4 10"/><path d="M2 12h20"/></svg></span>ChatGPT</button>
+      <button class="ai-item" data-ai="huggingface" data-external><span class="ai-icon">🤗</span>Hugging Face</button>
+    </div>
+  </div>
+</div>
+<button class="float-btn" id="fs-btn" title="Fullscreen">⛶</button>
+<button class="float-btn" id="sfx-btn" title="Sound FX">🔉</button>
+
+
+
+<!-- ═══ SFX PANEL ═══ -->
+<div id="sfx-panel">
+  <h3>🔉 Sound FX</h3>
+  <div class="setting-row"><label>Reverb</label><input type="range" id="s-reverbMix" min="0" max="1" step="0.05" value="0.3"><span class="val" data-for="s-reverbMix">0.3</span></div>
+  <div class="setting-row"><label>Echo Time</label><input type="range" id="s-echoDelay" min="0" max="1" step="0.01" value="0.5"><span class="val" data-for="s-echoDelay">0.5</span></div>
+  <div class="setting-row"><label>Echo Feedback</label><input type="range" id="s-echoFeedback" min="0" max="0.9" step="0.05" value="0.3"><span class="val" data-for="s-echoFeedback">0.3</span></div>
+  <div class="setting-row"><label>Echo Mix</label><input type="range" id="s-echoMix" min="0" max="1" step="0.05" value="0.3"><span class="val" data-for="s-echoMix">0.3</span></div>
+</div>
+
+<!-- ═══ CHAT PANEL ═══ -->
+<div id="chat-panel">
+  <div id="chat-header">
+    <h3>💬 LINK CHAT</h3>
+    <span class="chat-online" id="chat-online"></span>
+    <button class="close-panel" id="close-chat">✕</button>
+  </div>
+  <div id="chat-tabs">
+    <div class="chat-tab active" data-tab="public">PUBLIC</div>
+    <div class="chat-tab" data-tab="dm">MESSAGES</div>
+  </div>
+  <div class="dm-back" id="dm-back">← Back to conversations</div>
+  <div id="chat-messages"></div>
+  <div id="chat-dm-list"></div>
+  <div id="chat-dm-thread"></div>
+  <div id="chat-input-area" style="position:relative">
+    <div id="emoji-picker">
+      <div id="picker-mode">
+        <button class="picker-mode-tab active" data-mode="emoji">EMOJI</button>
+        <button class="picker-mode-tab" data-mode="sticker">STICKERS</button>
+      </div>
+      <div id="emoji-area">
+        <input type="text" id="emoji-search" placeholder="Search emoji…" autocomplete="off">
+        <div id="emoji-tabs"></div>
+        <div id="emoji-grid"></div>
+      </div>
+      <div id="sticker-area">
+        <div id="sticker-tabs"></div>
+        <div id="sticker-grid"></div>
+      </div>
+    </div>
+    <button id="emoji-btn" title="Emoji & Stickers">😊</button>
+    <input type="text" id="chat-input" placeholder="Type a message…" maxlength="500" autocomplete="off">
+    <button id="chat-send">SEND</button>
+  </div>
+  <div id="chat-name-area">
+    <div id="chat-name-row">
+      <input type="text" id="chat-name-input" placeholder="Choose a name…" maxlength="20" autocomplete="off">
+      <button id="chat-name-set">SET</button>
+    </div>
+    <div id="chat-remember-row">
+      <input type="checkbox" id="chat-remember"> <label for="chat-remember">Remember me</label>
+    </div>
+  </div>
+  <div id="chat-privacy">🔒 Public chat is P2P (Gun.js) — no server stores messages. DMs stay in your browser only. No accounts, no tracking. <a href="#" id="chat-clear-all">Clear all data</a></div>
+</div>
+
+<!-- ═══ SETTINGS PANEL ═══ -->
+<div id="settings-panel">
+  <button class="close-panel" id="close-settings">✕</button>
+
+  <h3>🎨 Colors</h3>
+  <div class="color-row"><label>Primary</label><input type="color" id="s-color1" value="#00ffd5"></div>
+  <div class="color-row"><label>Secondary</label><input type="color" id="s-color2" value="#ff00aa"></div>
+  <div class="color-row"><label>Accent</label><input type="color" id="s-color3" value="#f0ff00"></div>
+  <div class="color-row"><label>Background</label><input type="color" id="s-bgColor" value="#050508"></div>
+  <div class="setting-row"><label>Color Mode</label>
+    <select id="s-colorMode"><option value="static">Static</option><option value="frequency">Frequency Map</option><option value="cycle">Cycle</option><option value="reactive">Reactive</option></select>
+  </div>
+
+  <h3>🎛 Template</h3>
+  <div class="setting-row"><label>Shader</label>
+    <select id="s-template">
+      <option value="bars">Spectrum Bars</option>
+      <option value="wave">Oscilloscope</option>
+      <option value="radial">Radial Burst</option>
+      <option value="plasma">Plasma</option>
+      <option value="tunnel">Tunnel</option>
+      <option value="terrain">Terrain</option>
+      <option value="galaxy">Galaxy</option>
+      <option value="outrun">Outrun Grid</option>
+    </select>
+  </div>
+
+  <h3>🔊 Audio</h3>
+  <div class="setting-row"><label>Sensitivity</label><input type="range" id="s-sensitivity" min="0.1" max="5" step="0.1" value="1.5"><span class="val" data-for="s-sensitivity">1.5</span></div>
+  <div class="setting-row"><label>Smoothing</label><input type="range" id="s-smoothing" min="0" max="0.99" step="0.01" value="0.8"><span class="val" data-for="s-smoothing">0.8</span></div>
+  <div class="setting-row"><label>React To</label>
+    <select id="s-reactTo"><option value="volume">Volume</option><option value="bass">Bass</option><option value="mid">Mid</option><option value="treble">Treble</option></select>
+  </div>
+
+  <h3>🎭 Effects</h3>
+  <div class="setting-row"><label>Mirror</label>
+    <select id="s-mirror"><option value="0">None</option><option value="1">Horizontal</option><option value="2">Vertical</option><option value="3">Both</option></select>
+  </div>
+  <div class="toggle-row"><label>Scanlines</label><label class="toggle"><input type="checkbox" id="s-scanlines"><span></span></label></div>
+  <div class="toggle-row"><label>Vignette</label><label class="toggle"><input type="checkbox" id="s-vignette" checked><span></span></label></div>
+  <div class="toggle-row"><label>Invert</label><label class="toggle"><input type="checkbox" id="s-invert"><span></span></label></div>
+  <div class="toggle-row"><label>Grayscale</label><label class="toggle"><input type="checkbox" id="s-grayscale"><span></span></label></div>
+  <div class="setting-row"><label>Pixelate</label><input type="range" id="s-pixelate" min="0" max="64" step="1" value="0"><span class="val" data-for="s-pixelate">0</span></div>
+
+  <h3>🎵 Beat Sync</h3>
+  <div class="toggle-row"><label>Sync to Beat</label><label class="toggle"><input type="checkbox" id="s-bpmSync"><span></span></label></div>
+  <div class="setting-row"><label>Speed</label><input type="checkbox" class="sync-flag" id="s-syncSpeed" checked><input type="range" id="s-speed" min="0.1" max="5" step="0.1" value="1"><span class="val" data-for="s-speed">1.0</span></div>
+  <div class="setting-row"><label>Scale</label><input type="checkbox" class="sync-flag" id="s-syncScale" checked><input type="range" id="s-scale" min="0.1" max="3" step="0.05" value="1"><span class="val" data-for="s-scale">1.0</span></div>
+  <div class="setting-row"><label>Rotation</label><input type="checkbox" class="sync-flag" id="s-syncRotation"><input type="range" id="s-rotation" min="0" max="5" step="0.1" value="0"><span class="val" data-for="s-rotation">0.0</span></div>
+  <div class="setting-row"><label>Bloom</label><input type="checkbox" class="sync-flag" id="s-syncBloom" checked><input type="range" id="s-bloom" min="0" max="3" step="0.05" value="0.3"><span class="val" data-for="s-bloom">0.3</span></div>
+  <div class="setting-row"><label>Brightness</label><input type="checkbox" class="sync-flag" id="s-syncBright" checked><input type="range" id="s-brightness" min="0" max="3" step="0.05" value="1"><span class="val" data-for="s-brightness">1.0</span></div>
+  <div class="setting-row"><label>Contrast</label><input type="range" id="s-contrast" min="0" max="3" step="0.05" value="1"><span class="val" data-for="s-contrast">1.0</span></div>
+  <div class="setting-row"><label>Saturation</label><input type="checkbox" class="sync-flag" id="s-syncSat"><input type="range" id="s-saturation" min="0" max="3" step="0.05" value="1"><span class="val" data-for="s-saturation">1.0</span></div>
+
+  <h3>💾 Presets</h3>
+  <select id="preset-select"><option value="">— select preset —</option></select>
+  <input type="text" id="preset-name" placeholder="Preset name…">
+  <div class="preset-row">
+    <button id="preset-save">Save</button>
+    <button id="preset-delete">Delete</button>
+  </div>
+  <div class="preset-row">
+    <button id="preset-import">Import</button>
+    <button id="preset-export">Export</button>
+    <button id="preset-reset">Reset</button>
+  </div>
+
+  <h3>⚙ General</h3>
+  <div class="toggle-row"><label>Keep Views Loaded</label><label class="toggle"><input type="checkbox" id="s-keepViewsLoaded"><span></span></label></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   LINK — ACE-STEP Radio + WebGL Visualizer
+   ═══════════════════════════════════════════════════════════════ */
+
+// ─── GLOBAL CONFIG ───────────────────────────────────────────
+const CHAT_ENABLED = false; // set to true to enable chat panel
+
+// ─── PLAYLIST TRACKS (edit URLs/durations here) ──────────────
+// These are the tracks for the ACE-STEP 1.5 XL station (shuffle playback).
+// Durations must be identical across all clients (round to nearest second).
+const LINK_TRACKS = [
+  { url: 'https://cognito-inc-451.github.io/AS15XL-911b07b4-4267-165b-d2c2-8fe34457bfe6.mp3', duration: 185 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-8ce03c58-c928-2b00-2cb3-86ef05378bfa.mp3', duration: 339 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-5d8954ae-c398-fb4e-d397-fc9ff0a9ad60.mp3', duration: 251 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-985f687d-f7d7-f3ae-67e7-a5d1607cf3f8.mp3', duration: 212 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-d1e3abd9-9cd5-7a49-854f-31bda55e3dca.mp3', duration: 144 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-5c871e9f-49fc-5e88-9ff6-381f4f18c537.mp3', duration: 207 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-c81b48d8-51cb-8ea5-d051-0b57d7cd32f0.mp3', duration: 124 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-9dc78cd7-eebe-62d8-9e4d-75cc5a317fd1.mp3', duration: 338 },
+  { url: 'https://cognito-inc-451.github.io/AS15XL-d6f9f722-016b-6efa-c094-8ee5e37741c7.mp3', duration: 225 },
+];
+// demo data
+// const LINK_TRACKS = [
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', duration: 372 },
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', duration: 362 }, //425 
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', duration: 343 },
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', duration: 352 },
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', duration: 333 },
+//   { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', duration: 324 },
+// ];
+
+// ─── ARCHIVE TV: Public domain films & animations ───────────
+const ARCHIVE_VIDEOS = [
+  // ── Open-source animated short films (CC-BY) ──
+  { url: 'https://archive.org/download/ElephantsDream/ed_1024_512kb.mp4', title: 'Elephants Dream (2006)' },
+  { url: 'https://archive.org/download/Sintel/sintel-2048-stereo_512kb.mp4', title: 'Sintel (2010)' },
+  { url: 'https://archive.org/download/BigBuckBunny_328/BigBuckBunny_512kb.mp4', title: 'Big Buck Bunny (2008)' },
+  { url: 'https://archive.org/download/Tears-of-Steel/tears_of_steel_720p.mp4', title: 'Tears of Steel (2012)' },
+  // ── Silent era masterpieces (pre-1927) ──
+  { url: 'https://archive.org/download/ATripToTheMoon/ATripToTheMoon_512kb.mp4', title: 'A Trip to the Moon (1902)' },
+  { url: 'https://archive.org/download/Nosferatu_silent_film/Nosferatu.mp4', title: 'Nosferatu (1922)' },
+  { url: 'https://archive.org/download/Metropolis_201/Metropolis.mp4', title: 'Metropolis (1927)' },
+  { url: 'https://archive.org/download/TheCabinetOfDrCaligari/TheCabinetOfDrCaligari_512kb.mp4', title: 'The Cabinet of Dr. Caligari (1920)' },
+  { url: 'https://archive.org/download/ThePhantomOfTheOpera/ThePhantomOfTheOpera_512kb.mp4', title: 'The Phantom of the Opera (1925)' },
+  { url: 'https://archive.org/download/DrJekyllAndMrHyde1920/DrJekyllAndMrHyde1920_512kb.mp4', title: 'Dr. Jekyll and Mr. Hyde (1920)' },
+  { url: 'https://archive.org/download/TheKid1921/TheKid1921_512kb.mp4', title: 'The Kid (1921)' },
+  { url: 'https://archive.org/download/SafetyLast/SafetyLast_512kb.mp4', title: 'Safety Last! (1923)' },
+  { url: 'https://archive.org/download/TheGeneralBusterKeaton/The_General_512kb.mp4', title: 'The General (1926)' },
+  { url: 'https://archive.org/download/BattleshipPotemkin/Battleship_Potemkin_512kb.mp4', title: 'Battleship Potemkin (1925)' },
+  { url: 'https://archive.org/download/TheGoldRush_201810/The_Gold_Rush_512kb.mp4', title: 'The Gold Rush (1925)' },
+  // ── Classic horror & sci-fi (commented out) ──
+  // { url: 'https://archive.org/download/night_of_the_living_dead/night_of_the_living_dead_512kb.mp4', title: 'Night of the Living Dead (1968)' },
+  // { url: 'https://archive.org/download/Plan9FromOuterSpace/Plan_9_from_Outer_Space_512kb.mp4', title: 'Plan 9 from Outer Space (1957)' },
+  // { url: 'https://archive.org/download/TheLittleShop1960/TheLittleShop1960_512kb.mp4', title: 'The Little Shop of Horrors (1960)' },
+  // { url: 'https://archive.org/download/Dementia_13/Dementia_13_512kb.mp4', title: 'Dementia 13 (1963)' },
+  // { url: 'https://archive.org/download/TheLastManOnEarth1964/TheLastManOnEarth1964_512kb.mp4', title: 'The Last Man on Earth (1964)' },
+  // { url: 'https://archive.org/download/house_on_haunted_hill_ipod/house_on_haunted_hill_512kb.mp4', title: 'House on Haunted Hill (1959)' },
+  // { url: 'https://archive.org/download/TheBrainThatWouldntDie1962/TheBrainThatWouldntDie1962_512kb.mp4', title: "The Brain That Wouldn't Die (1962)" },
+  // { url: 'https://archive.org/download/Carnival_of_Souls/Carnival_of_Souls_512kb.mp4', title: 'Carnival of Souls (1962)' },
+  // { url: 'https://archive.org/download/AttackOfTheGiantLeeches1959/AttackOfTheGiantLeeches1959_512kb.mp4', title: 'Attack of the Giant Leeches (1959)' },
+  // { url: 'https://archive.org/download/TheWaspWoman/TheWaspWoman_512kb.mp4', title: 'The Wasp Woman (1959)' },
+  // { url: 'https://archive.org/download/CreatureFromTheHauntedSea/CreatureFromTheHauntedSea_512kb.mp4', title: 'Creature from the Haunted Sea (1961)' },
+  // { url: 'https://archive.org/download/TheManchurianCandidate/TheManchurianCandidate_512kb.mp4', title: 'Teenagers from Outer Space (1959)' },
+  // { url: 'https://archive.org/download/Manos_the_hands_of_fate/Manos_the_hands_of_fate_512kb.mp4', title: 'Manos: The Hands of Fate (1966)' },
+  // { url: 'https://archive.org/download/AtomicBrainTheEdwood/AtomicBrain_512kb.mp4', title: 'The Atomic Brain (1963)' },
+  // { url: 'https://archive.org/download/TheDayTheEarthStoodStill/TheDayTheEarthStoodStill_512kb.mp4', title: 'Robot Monster (1953)' },
+  // ── Film noir & thrillers ──
+  { url: 'https://archive.org/download/Charade1963/Charade1963_512kb.mp4', title: 'Charade (1963)' },
+  { url: 'https://archive.org/download/TheStrangerOrsonWelles1946/TheStrangerOrsonWelles1946_512kb.mp4', title: 'The Stranger (1946)' },
+  { url: 'https://archive.org/download/TheHitchhiker1953/TheHitchhiker1953_512kb.mp4', title: 'The Hitch-Hiker (1953)' },
+  { url: 'https://archive.org/download/Detour1945/Detour1945_512kb.mp4', title: 'Detour (1945)' },
+  { url: 'https://archive.org/download/DOA_film/DOA_512kb.mp4', title: 'D.O.A. (1949)' },
+  { url: 'https://archive.org/download/KansasCityConfidential/KansasCityConfidential_512kb.mp4', title: 'Kansas City Confidential (1952)' },
+  { url: 'https://archive.org/download/ScarletStreet/ScarletStreet_512kb.mp4', title: 'Scarlet Street (1945)' },
+  { url: 'https://archive.org/download/the_big_combo_ipod/the_big_combo_512kb.mp4', title: 'The Big Combo (1955)' },
+  { url: 'https://archive.org/download/SuddenlyMovie/Suddenly_512kb.mp4', title: 'Suddenly (1954)' },
+  { url: 'https://archive.org/download/Quicksand1950/Quicksand1950_512kb.mp4', title: 'Quicksand (1950)' },
+  { url: 'https://archive.org/download/too_late_for_tears/too_late_for_tears_512kb.mp4', title: 'Too Late for Tears (1949)' },
+  { url: 'https://archive.org/download/thechase_1946/thechase_1946_512kb.mp4', title: 'The Chase (1946)' },
+  // ── Comedy & drama ──
+  { url: 'https://archive.org/download/reefer_madness1936/reefer_madness1936_512kb.mp4', title: 'Reefer Madness (1936)' },
+  { url: 'https://archive.org/download/HisGirlFriday/HisGirlFriday_512kb.mp4', title: 'His Girl Friday (1940)' },
+  { url: 'https://archive.org/download/MyManGodfrey/MyManGodfrey_512kb.mp4', title: 'My Man Godfrey (1936)' },
+  { url: 'https://archive.org/download/ThePhiladelphiaStory/ThePhiladelphiaStory_512kb.mp4', title: 'The Philadelphia Story (1940)' },
+  { url: 'https://archive.org/download/McLintock/McLintock_512kb.mp4', title: 'McLintock! (1963)' },
+  { url: 'https://archive.org/download/AngelAndTheBadman1947/Angel_and_the_Badman_512kb.mp4', title: 'Angel and the Badman (1947)' },
+  { url: 'https://archive.org/download/TheGlassKey_946/TheGlassKey_512kb.mp4', title: 'The Glass Key (1942)' },
+  { url: 'https://archive.org/download/RoyalWedding_306/RoyalWedding_512kb.mp4', title: 'Royal Wedding (1951)' },
+  { url: 'https://archive.org/download/AForeignAffair/AForeignAffair_512kb.mp4', title: 'A Foreign Affair (1948)' },
+  // ── Documentaries & shorts ──
+  { url: 'https://archive.org/download/DuckandC1951/DuckandC1951_512kb.mp4', title: 'Duck and Cover (1951)' },
+  { url: 'https://archive.org/download/a_is_for_atom/isforAto1953_512kb.mp4', title: 'A is for Atom (1953)' },
+  { url: 'https://archive.org/download/Powaqqatsi/Powaqqatsi_512kb.mp4', title: 'Our Mr. Sun (1956)' },
+  { url: 'https://archive.org/download/DesignForDreaming/DesignForDreaming_512kb.mp4', title: 'Design for Dreaming (1956)' },
+  // ── Adventure & action ──
+  { url: 'https://archive.org/download/TheFourFeathers/TheFourFeathers_512kb.mp4', title: 'The Four Feathers (1929)' },
+  { url: 'https://archive.org/download/TheCountOfMonteCristo/TheCountOfMonteCristo_512kb.mp4', title: 'The Count of Monte Cristo (1934)' },
+  { url: 'https://archive.org/download/TheLastDaysOfPompeii/TheLastDaysOfPompeii_512kb.mp4', title: 'The Last Days of Pompeii (1935)' },
+  { url: 'https://archive.org/download/Cyrano_de_Bergerac/Cyrano_de_Bergerac_512kb.mp4', title: 'Cyrano de Bergerac (1950)' },
+  { url: 'https://archive.org/download/GulliversTravels1939/GulliversTravels1939_512kb.mp4', title: "Gulliver's Travels (1939)" },
+  { url: 'https://archive.org/download/TheCorsairBusterCrabbe/KingOfTheKongoChap1_512kb.mp4', title: 'Flash Gordon: Space Soldiers (1936)' },
+];
+
+// ─── STATIONS ────────────────────────────────────────────────
+const STATIONS = [
+  {
+    name: '🎵 ACE-STEP 1.5 XL',
+    type: 'playlist',
+    tracks: LINK_TRACKS
+  },
+  // ── SomaFM (reliable HTTPS streams) ──
+  { name: 'Groove Salad', type: 'stream', url: 'https://ice1.somafm.com/groovesalad-128-mp3', genre: 'Chillout' },
+  { name: 'Groove Salad Classic', type: 'stream', url: 'https://ice1.somafm.com/gsclassic-128-mp3', genre: 'Classic Chill' },
+  { name: 'DEF CON Radio', type: 'stream', url: 'https://ice1.somafm.com/defcon-128-mp3', genre: 'Electronic' },
+  { name: 'Drone Zone', type: 'stream', url: 'https://ice1.somafm.com/dronezone-128-mp3', genre: 'Ambient' },
+  { name: 'Vaporwaves', type: 'stream', url: 'https://ice1.somafm.com/vaporwaves-128-mp3', genre: 'Vaporwave' },
+  { name: 'Space Station', type: 'stream', url: 'https://ice1.somafm.com/spacestation-128-mp3', genre: 'Space' },
+  { name: 'Secret Agent', type: 'stream', url: 'https://ice1.somafm.com/secretagent-128-mp3', genre: 'Lounge' },
+  { name: 'The Trip', type: 'stream', url: 'https://ice1.somafm.com/thetrip-128-mp3', genre: 'Progressive' },
+  { name: 'Lush', type: 'stream', url: 'https://ice1.somafm.com/lush-128-mp3', genre: 'Electronica' },
+  { name: 'Underground 80s', type: 'stream', url: 'https://ice1.somafm.com/u80s-128-mp3', genre: '80s' },
+  { name: 'Beat Blender', type: 'stream', url: 'https://ice1.somafm.com/beatblender-128-mp3', genre: 'Beats' },
+  { name: 'Indie Pop Rocks', type: 'stream', url: 'https://ice1.somafm.com/indiepop-128-mp3', genre: 'Indie' },
+  { name: 'Metal Detector', type: 'stream', url: 'https://ice1.somafm.com/metal-128-mp3', genre: 'Metal' },
+  { name: 'cliqhop idm', type: 'stream', url: 'https://ice1.somafm.com/cliqhop-128-mp3', genre: 'IDM' },
+  { name: 'Fluid', type: 'stream', url: 'https://ice1.somafm.com/fluid-128-mp3', genre: 'Hip-Hop' },
+  { name: 'PopTron', type: 'stream', url: 'https://ice1.somafm.com/poptron-128-mp3', genre: 'Synthpop' },
+  { name: 'Suburbs of Goa', type: 'stream', url: 'https://ice1.somafm.com/suburbsofgoa-128-mp3', genre: 'Indian Electronic' },
+  { name: 'Left Coast 70s', type: 'stream', url: 'https://ice1.somafm.com/seventies-128-mp3', genre: '70s' },
+  { name: 'Boot Liquor', type: 'stream', url: 'https://ice1.somafm.com/bootliquor-128-mp3', genre: 'Americana' },
+  { name: 'Seven Inch Soul', type: 'stream', url: 'https://ice1.somafm.com/7soul-128-mp3', genre: 'Soul' },
+  { name: 'ThistleRadio', type: 'stream', url: 'https://ice1.somafm.com/thistle-128-mp3', genre: 'Celtic' },
+  { name: 'BAGeL Radio', type: 'stream', url: 'https://ice1.somafm.com/bagel-128-mp3', genre: 'Eclectic' },
+  { name: 'Digitalis', type: 'stream', url: 'https://ice1.somafm.com/digitalis-128-mp3', genre: 'Deep Electronic' },
+  { name: 'SF 10-33', type: 'stream', url: 'https://ice1.somafm.com/sf1033-128-mp3', genre: 'Ambient Scanner' },
+  { name: 'Deep Space One', type: 'stream', url: 'https://ice1.somafm.com/deepspaceone-128-mp3', genre: 'Deep Space' },
+  { name: 'n5MD Radio', type: 'stream', url: 'https://ice1.somafm.com/n5md-128-mp3', genre: 'Post-Rock' },
+  { name: 'Mission Control', type: 'stream', url: 'https://ice1.somafm.com/missioncontrol-128-mp3', genre: 'NASA/Space' },
+  { name: 'Sonic Universe', type: 'stream', url: 'https://ice1.somafm.com/sonicuniverse-128-mp3', genre: 'Jazz Fusion' },
+  { name: 'Illinois Street', type: 'stream', url: 'https://ice1.somafm.com/illstreet-128-mp3', genre: 'Classic R&B' },
+  { name: 'Covers', type: 'stream', url: 'https://ice1.somafm.com/covers-128-mp3', genre: 'Cover Songs' },
+  { name: 'SomaFM Live', type: 'stream', url: 'https://ice1.somafm.com/live-128-mp3', genre: 'Live Sessions' },
+  // ── Radio Paradise ──
+  { name: 'Radio Paradise', type: 'stream', url: 'https://stream.radioparadise.com/mp3-128', genre: 'Eclectic', meta: 'rp' },
+  { name: 'RP Mellow Mix', type: 'stream', url: 'https://stream.radioparadise.com/mellow-128', genre: 'Mellow', meta: 'rp-mellow' },
+  { name: 'RP Rock Mix', type: 'stream', url: 'https://stream.radioparadise.com/rock-128', genre: 'Rock', meta: 'rp-rock' },
+  { name: 'RP Global Mix', type: 'stream', url: 'https://stream.radioparadise.com/global-128', genre: 'World', meta: 'rp-global' },
+  // ── Public / indie broadcasters ──
+  { name: 'KEXP', type: 'stream', url: 'https://kexp-mp3-128.streamguys1.com/kexp128.mp3', genre: 'Seattle Indie' },
+  { name: 'FIP', type: 'stream', url: 'https://icecast.radiofrance.fr/fip-midfi.mp3', genre: 'Paris Eclectic' },
+  { name: 'FIP Electro', type: 'stream', url: 'https://icecast.radiofrance.fr/fipelectro-midfi.mp3', genre: 'Paris Electronic' },
+  { name: 'FIP Rock', type: 'stream', url: 'https://icecast.radiofrance.fr/fiprock-midfi.mp3', genre: 'Paris Rock' },
+  { name: 'FIP Jazz', type: 'stream', url: 'https://icecast.radiofrance.fr/fipjazz-midfi.mp3', genre: 'Paris Jazz' },
+  { name: 'France Musique', type: 'stream', url: 'https://icecast.radiofrance.fr/francemusique-midfi.mp3', genre: 'Classical' },
+  { name: 'NTS 1', type: 'stream', url: 'https://stream-relay-geo.ntslive.net/stream', genre: 'London' },
+  { name: 'NTS 2', type: 'stream', url: 'https://stream-relay-geo.ntslive.net/stream2', genre: 'London 2' },
+  // ── Jazz & classical ──
+  { name: 'WBGO Jazz', type: 'stream', url: 'https://wbgo.streamguys1.com/wbgo128', genre: 'Jazz' },
+  { name: 'Jazz Groove', type: 'stream', url: 'https://east-mp3-128.streamguys1.com:443/100-1087150', genre: 'Smooth Jazz' },
+  { name: 'Venice Classic', type: 'stream', url: 'https://uk2.internet-radio.com:8024/stream', genre: 'Classical' },
+  // ── Electronica / dance ──
+  { name: 'Chilltrax', type: 'stream', url: 'https://streamssl.chilltrax.com/stream?sid=1', genre: 'Chillout' },
+  { name: 'Frisky Deep', type: 'stream', url: 'https://stream.friskyradio.com/frisky_mp3_hi', genre: 'Deep House' },
+  { name: 'Bassdrive', type: 'stream', url: 'https://bassdrive.radioca.st/stream', genre: 'Drum & Bass' },
+  { name: 'Psyradio FM', type: 'stream', url: 'https://cast.magicstreams.gr:9111/stream', genre: 'Psytrance' },
+  // ── News & talk ──
+  { name: 'BBC World', type: 'stream', url: 'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service', genre: 'World News' },
+  { name: 'NPR News', type: 'stream', url: 'https://npr-ice.streamguys1.com/live.mp3', genre: 'US News' },
+];
+
+// ─── EXTERNAL VIEWS ──────────────────────────────────────────
+const VIEWS = {
+  viz: null,
+  linktv: null, // Archive TV uses built-in video player
+  'neon-tv': 'https://cognito-inc-451.github.io/neon-tv.html',
+  curve: 'https://cognito-inc-451.github.io/claudecurve.html',
+  retro: 'https://cognito-inc-451.github.io/retro.html',
+};
+// Map view keys to their dedicated iframe IDs
+const VIEW_FRAMES = {
+  'neon-tv': 'frame-neon-tv',
+  curve: 'frame-curve',
+  retro: 'frame-retro',
+  // news: 'frame-news',
+  ai: 'frame-ai',
+};
+const AI_URLS = {
+  playground: 'https://cognito-inc-451.github.io/AI.html',
+  storytellers: 'https://cognito-inc-451.github.io/taiv.html',
+  glimpse: 'https://cognito-inc-451.github.io/aEye.html',
+  claude: 'https://claude.ai',
+  grok: 'https://grok.com',
+  chatgpt: 'https://chatgpt.com',
+  huggingface: 'https://huggingface.co',
+};
+let loadedViews = {}; // track which iframes have been loaded
+
+// ─── DEFAULT SETTINGS (first-run experience) ────────────────
+const DEFAULTS = {
+  template: 'tunnel', color1: '#00ffd5', color2: '#ff00aa', color3: '#f0ff00', bgColor: '#050508',
+  colorMode: 'frequency', sensitivity: 1.6, smoothing: 0.87, reactTo: 'volume',
+  speed: 0.1, scale: 1.15, rotation: 0, bloom: 1.5, brightness: 0.5, contrast: 1, saturation: 3,
+  mirror: 3, scanlines: false, vignette: false, invert: false, grayscale: false, pixelate: 0,
+  bpmSync: false, syncSpeed: true, syncBloom: true, syncBright: true, syncScale: true, syncRotation: false, syncSat: false,
+  reverbMix: 0.3, echoDelay: 0.5, echoFeedback: 0.3, echoMix: 0.3,
+  keepViewsLoaded: false,
+};
+
+// ─── STATE ───────────────────────────────────────────────────
+let settings = { ...DEFAULTS };
+let currentStation = 0;
+let isPlaying = false;
+let isRecording = false;
+let vizRunning = true;
+let vizPaused = false;
+let isLocalFile = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+let recDest = null;
+let currentView = 'viz';
+
+// ─── CROSSFADE STATE ─────────────────────────────────────────
+const XFADE_DUR = 6; // seconds
+let activePlayer = 'a'; // 'a' or 'b'
+let isCrossfading = false;
+let xfadeTargetIdx = -1;
+let xfadeStartTime = 0;
+let lastSyncIdx = -1;
+
+// ─── SHUFFLE STATE ───────────────────────────────────────────
+let shuffleOrder = [];
+let shuffleIdx = 0;
+function shuffleArray(n) {
+  const a = [...Array(n).keys()];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─── DOM ─────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const audioA = $('audio-a');
+const audioB = $('audio-b');
+const audioRaw = $('audio-raw'); // non-CORS direct playback
+let useRawAudio = false; // true when playing non-CORS playlist
+const canvas = $('viz');
+const barToggle = $('bar-toggle');
+const stationSelect = $('station-select');
+const playBtn = $('play-btn');
+const trackInfo = $('track-info');
+const progressFill = $('progress-fill');
+const progressWrap = $('progress-wrap');
+const recBtn = $('rec-btn');
+const localFileInput = $('local-file');
+const volumeSlider = $('volume');
+const volIcon = $('vol-icon');
+const settingsPanel = $('settings-panel');
+const settingsBtn = $('settings-btn');
+const sfxPanel = $('sfx-panel');
+const sfxBtn = $('sfx-btn');
+
+const fsBtn = $('fs-btn');
+
+// Active audio helper
+function activeAudio() {
+  if (useRawAudio) return audioRaw;
+  return activePlayer === 'a' ? audioA : audioB;
+}
+function standbyAudio() { return activePlayer === 'a' ? audioB : audioA; }
+
+// ─── AUDIO ENGINE ────────────────────────────────────────────
+let audioCtx, sourceA, sourceB, gainA, gainB, analyser, masterGain;
+let reverbNode, reverbGain, dryGain, echoDelay, echoFeedback, echoGain, echoDry;
+let fftData, waveData;
+const FFT_SIZE = 2048;
+const BIN_COUNT = FFT_SIZE / 2;
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = FFT_SIZE;
+  analyser.smoothingTimeConstant = settings.smoothing;
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = volumeSlider.value / 100;
+  // Player A
+  sourceA = audioCtx.createMediaElementSource(audioA);
+  gainA = audioCtx.createGain();
+  gainA.gain.value = 1;
+  sourceA.connect(gainA);
+  gainA.connect(analyser);
+  // Player B
+  sourceB = audioCtx.createMediaElementSource(audioB);
+  gainB = audioCtx.createGain();
+  gainB.gain.value = 0;
+  sourceB.connect(gainB);
+  gainB.connect(analyser);
+  // Output chain: analyser → dry/wet split → masterGain → destination
+  // Reverb (ConvolverNode)
+  reverbNode = audioCtx.createConvolver();
+  reverbNode.buffer = buildIR(audioCtx, 2, 2.5, 0.8);
+  reverbGain = audioCtx.createGain();
+  reverbGain.gain.value = settings.reverbMix;
+  dryGain = audioCtx.createGain();
+  dryGain.gain.value = 1;
+  analyser.connect(dryGain);
+  analyser.connect(reverbNode);
+  reverbNode.connect(reverbGain);
+  dryGain.connect(masterGain);
+  reverbGain.connect(masterGain);
+  // Echo (DelayNode)
+  echoDelay = audioCtx.createDelay(2.0);
+  echoDelay.delayTime.value = Math.max(0.01, settings.echoDelay);
+  echoFeedback = audioCtx.createGain();
+  echoFeedback.gain.value = settings.echoFeedback;
+  echoGain = audioCtx.createGain();
+  echoGain.gain.value = settings.echoMix;
+  echoDry = audioCtx.createGain();
+  echoDry.gain.value = 1;
+  masterGain.connect(echoDry);
+  masterGain.connect(echoDelay);
+  echoDelay.connect(echoFeedback);
+  echoFeedback.connect(echoDelay);
+  echoDelay.connect(echoGain);
+  echoDry.connect(audioCtx.destination);
+  echoGain.connect(audioCtx.destination);
+  fftData = new Uint8Array(BIN_COUNT);
+  waveData = new Uint8Array(BIN_COUNT);
+}
+
+// Build impulse response for reverb
+function buildIR(ctx, channels, duration, decay) {
+  const len = ctx.sampleRate * duration;
+  const buf = ctx.createBuffer(channels, len, ctx.sampleRate);
+  for (let ch = 0; ch < channels; ch++) {
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return buf;
+}
+
+// ─── SYNC ENGINE ─────────────────────────────────────────────
+const SYNC_EPOCH = new Date('2024-01-01T00:00:00Z').getTime();
+
+// High-precision UTC time using performance.timeOrigin + performance.now()
+// This avoids Date.now() integer rounding and gives sub-millisecond precision
+function preciseNow() {
+  return performance.timeOrigin + performance.now();
+}
+
+function getSyncPosition(tracks, offsetSec) {
+  const totalDur = tracks.reduce((s, t) => s + t.duration, 0);
+  const elapsed = (((preciseNow() - SYNC_EPOCH) / 1000) + (offsetSec || 0)) % totalDur;
+  // Handle negative modulo
+  const pos = elapsed < 0 ? elapsed + totalDur : elapsed;
+  let cum = 0;
+  for (let i = 0; i < tracks.length; i++) {
+    if (cum + tracks[i].duration > pos) return { index: i, offset: pos - cum };
+    cum += tracks[i].duration;
+  }
+  return { index: 0, offset: 0 };
+}
+
+function getTrackFilename(url) {
+  return decodeURIComponent(url.split('/').pop().replace(/\.[^.]+$/, ''));
+}
+
+// ─── STATION PLAYBACK ────────────────────────────────────────
+function populateStations() {
+  stationSelect.innerHTML = '';
+  STATIONS.forEach((s, i) => {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = s.name + (s.genre ? ` [${s.genre}]` : '');
+    stationSelect.appendChild(o);
+  });
+}
+
+function switchStation(index) {
+  if (index < 0) index = STATIONS.length - 1;
+  if (index >= STATIONS.length) index = 0;
+  currentStation = index;
+  stationSelect.value = index;
+  isLocalFile = false;
+  shuffleOrder = []; shuffleIdx = 0; // Reset shuffle on station change
+  // Stop all audio sources before switching
+  audioRaw.pause(); audioRaw.removeAttribute('src');
+  cancelCrossfade();
+  stopMetadataPolling();
+  updatePlaylistMode();
+  playStation(); // always start playing on station change
+  autoSave();
+}
+
+function cancelCrossfade() {
+  if (!audioCtx) return;
+  isCrossfading = false;
+  xfadeTargetIdx = -1;
+  // Reset gains
+  const aGain = activePlayer === 'a' ? gainA : gainB;
+  const sGain = activePlayer === 'a' ? gainB : gainA;
+  aGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  sGain.gain.cancelScheduledValues(audioCtx.currentTime);
+  aGain.gain.setValueAtTime(1, audioCtx.currentTime);
+  sGain.gain.setValueAtTime(0, audioCtx.currentTime);
+  standbyAudio().pause();
+  standbyAudio().removeAttribute('src');
+  standbyAudio().load();
+}
+
+function playStation() {
+  const station = STATIONS[currentStation];
+
+  if (station.type === 'playlist') {
+    // Shuffle playlist: pick random tracks, no cross-device sync
+    useRawAudio = true;
+    if (audioCtx) {
+      audioA.pause(); audioA.removeAttribute('src');
+      audioB.pause(); audioB.removeAttribute('src');
+    }
+    if (!shuffleOrder.length || shuffleIdx >= shuffleOrder.length) {
+      shuffleOrder = shuffleArray(station.tracks.length);
+      shuffleIdx = 0;
+    }
+    const trackIdx = shuffleOrder[shuffleIdx];
+    const track = station.tracks[trackIdx];
+    const fname = getTrackFilename(track.url);
+    trackInfo.textContent = fname;
+
+    audioRaw.volume = volumeSlider.value / 100;
+    audioRaw.src = track.url;
+    audioRaw.oncanplay = () => {
+      audioRaw.oncanplay = null;
+      audioRaw.play().catch(() => {});
+    };
+    audioRaw.onerror = null;
+    audioRaw.onended = () => {
+      if (isPlaying && STATIONS[currentStation] === station) {
+        shuffleIdx++;
+        playStation();
+      }
+    };
+    startMetadataPolling();
+  } else if (station.type === 'stream') {
+    // CORS stream: use Web Audio for visualizer
+    useRawAudio = false;
+    audioRaw.pause(); audioRaw.removeAttribute('src');
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const audio = activePlayer === 'a' ? audioA : audioB;
+    const aGain = activePlayer === 'a' ? gainA : gainB;
+    aGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    aGain.gain.setValueAtTime(1, audioCtx.currentTime);
+
+    audio.crossOrigin = 'anonymous';
+    audio.src = station.url;
+    trackInfo.textContent = station.name + (station.genre ? ' — ' + station.genre : '');
+    audio.onended = null;
+
+    const tryPlay = () => audio.play().catch(() => {});
+    let corsRetried = false;
+    audio.onerror = function() {
+      if (!corsRetried) {
+        corsRetried = true;
+        audio.removeAttribute('crossorigin');
+        audio.crossOrigin = null;
+        audio.src = station.url;
+        tryPlay();
+        return;
+      }
+      if (station.fallbackUrl && audio.src !== station.fallbackUrl) {
+        audio.src = station.fallbackUrl;
+        tryPlay();
+      }
+    };
+    tryPlay();
+    startMetadataPolling();
+  }
+
+  isPlaying = true;
+  vizRunning = true; // unpause visualizer when playing
+  playBtn.textContent = '⏸';
+  playBtn.classList.add('playing');
+  updatePlaylistMode();
+  autoSave();
+}
+
+function pauseStation() {
+  activeAudio().pause();
+  if (!useRawAudio) standbyAudio().pause();
+  cancelCrossfade();
+  isPlaying = false;
+  playBtn.textContent = '▶';
+  playBtn.classList.remove('playing');
+  stopMetadataPolling();
+  autoSave();
+}
+
+function togglePlay() {
+  if (isPlaying) pauseStation(); else playStation();
+}
+
+// ─── SKIP TRACK (shuffle playlist) ──────────────────────────
+function skipNextTrack() {
+  const station = STATIONS[currentStation];
+  if (station.type !== 'playlist' || !isPlaying) return;
+  shuffleIdx++;
+  playStation();
+}
+function skipPrevTrack() {
+  const station = STATIONS[currentStation];
+  if (station.type !== 'playlist' || !isPlaying) return;
+  shuffleIdx = Math.max(0, shuffleIdx - 1);
+  playStation();
+}
+
+// Update playlist-mode class on radio bar for skip button visibility
+function updatePlaylistMode() {
+  const station = STATIONS[currentStation];
+  document.getElementById('radio-bar').classList.toggle('playlist-mode', station && station.type === 'playlist');
+}
+
+// ─── CROSSFADE ENGINE ────────────────────────────────────────
+function updateCrossfade() {
+  if (!isPlaying || isLocalFile) return;
+  const station = STATIONS[currentStation];
+  if (!station || !station.synced) return; // No crossfade for shuffle playlists
+
+  const pos = getSyncPosition(station.tracks, settings.syncOffsetRadio);
+  const track = station.tracks[pos.index];
+
+  // Update track info if track changed
+  if (pos.index !== lastSyncIdx && !isCrossfading) {
+    lastSyncIdx = pos.index;
+    const fname = getTrackFilename(track.url);
+    trackInfo.innerHTML = `${fname} <span id="sync-badge">● SYNCED</span>`;
+
+    if (useRawAudio) {
+      // Raw audio mode: simple track switch (no crossfade)
+      audioRaw.src = track.url;
+      audioRaw.volume = volumeSlider.value / 100;
+      const seekAndPlay = () => {
+        audioRaw.oncanplay = null;
+        const pos2 = getSyncPosition(station.tracks, settings.syncOffsetRadio);
+        if (pos2.index === pos.index) {
+          try { audioRaw.currentTime = pos2.offset; } catch(e) {}
+        }
+        audioRaw.play().catch(() => {});
+      };
+      audioRaw.oncanplay = seekAndPlay;
+      return;
+    }
+  }
+
+  // Web Audio crossfade (only for CORS sources)
+  if (!audioCtx || useRawAudio) return;
+  const remaining = track.duration - pos.offset;
+
+  // Initiate crossfade when approaching track end
+  if (remaining <= XFADE_DUR && remaining > 0.5 && !isCrossfading) {
+    const nextIdx = (pos.index + 1) % station.tracks.length;
+    if (nextIdx === xfadeTargetIdx) return; // Already handled
+    xfadeTargetIdx = nextIdx;
+    isCrossfading = true;
+
+    const nextTrack = station.tracks[nextIdx];
+    const sAudio = standbyAudio();
+    const aGainNode = activePlayer === 'a' ? gainA : gainB;
+    const sGainNode = activePlayer === 'a' ? gainB : gainA;
+
+    // No CORS for playlist tracks (same as playStation)
+    sAudio.removeAttribute('crossorigin');
+    sAudio.crossOrigin = null;
+    sAudio.src = nextTrack.url;
+    sAudio.currentTime = 0;
+    sGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    sAudio.play().catch(() => {});
+
+    // Schedule crossfade ramps
+    const now = audioCtx.currentTime;
+    const fadeTime = Math.min(remaining - 0.3, XFADE_DUR);
+    aGainNode.gain.setValueAtTime(1, now);
+    aGainNode.gain.linearRampToValueAtTime(0, now + fadeTime);
+    sGainNode.gain.setValueAtTime(0, now);
+    sGainNode.gain.linearRampToValueAtTime(1, now + fadeTime);
+
+    xfadeStartTime = Date.now();
+  }
+
+  // Complete crossfade
+  if (isCrossfading && pos.index === xfadeTargetIdx) {
+    const oldAudio = activeAudio();
+    oldAudio.pause();
+    oldAudio.removeAttribute('src');
+    oldAudio.load();
+
+    activePlayer = activePlayer === 'a' ? 'b' : 'a';
+    lastSyncIdx = pos.index;
+    isCrossfading = false;
+    xfadeTargetIdx = -1;
+
+    const fname = getTrackFilename(station.tracks[pos.index].url);
+    trackInfo.innerHTML = `${fname} <span id="sync-badge">● SYNCED</span>`;
+  }
+}
+
+// ─── LOCAL FILE ──────────────────────────────────────────────
+function loadLocalFile(file) {
+  // Local files use Web Audio (same-origin, CORS not an issue)
+  useRawAudio = false;
+  audioRaw.pause(); audioRaw.removeAttribute('src');
+  if (!audioCtx) initAudio();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  cancelCrossfade();
+  stopMetadataPolling();
+  const url = URL.createObjectURL(file);
+  const audio = activePlayer === 'a' ? audioA : audioB;
+  audio.crossOrigin = '';
+  audio.src = url;
+  audio.play().catch(() => {});
+  isPlaying = true;
+  isLocalFile = true;
+  playBtn.textContent = '⏸';
+  playBtn.classList.add('playing');
+  trackInfo.textContent = '📁 ' + file.name;
+  audio.onended = () => { pauseStation(); };
+}
+
+// ─── RECORDING ───────────────────────────────────────────────
+function startRecording() {
+  if (!audioCtx || isRecording) return;
+  recDest = audioCtx.createMediaStreamDestination();
+  masterGain.connect(recDest);
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+    : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : 'audio/webm';
+  mediaRecorder = new MediaRecorder(recDest.stream, { mimeType });
+  recordedChunks = [];
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    const blob = new Blob(recordedChunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+    a.download = `link-${Date.now()}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    try { masterGain.disconnect(recDest); } catch(e) {}
+    recDest = null;
+  };
+  mediaRecorder.start(1000);
+  isRecording = true;
+  recBtn.classList.add('recording');
+}
+
+function stopRecording() {
+  if (!isRecording || !mediaRecorder) return;
+  mediaRecorder.stop();
+  isRecording = false;
+  recBtn.classList.remove('recording');
+}
+
+// ─── METADATA POLLING ────────────────────────────────────────
+let metaTimer = null;
+let currentMetaChannel = null;
+
+function startMetadataPolling() {
+  stopMetadataPolling();
+  const station = STATIONS[currentStation];
+  if (!station || station.type === 'playlist') return;
+
+  // SomaFM — detect from URL
+  const somaMatch = station.url.match(/somafm\.com\/([^-]+)/);
+  if (somaMatch) {
+    currentMetaChannel = somaMatch[1];
+    fetchSomaMeta(currentMetaChannel);
+    metaTimer = setInterval(() => fetchSomaMeta(currentMetaChannel), 30000);
+    return;
+  }
+  // Radio Paradise
+  if (station.meta && station.meta.startsWith('rp')) {
+    const chan = station.meta === 'rp' ? 0 : station.meta === 'rp-mellow' ? 1 : station.meta === 'rp-rock' ? 2 : station.meta === 'rp-global' ? 3 : 0;
+    fetchRPMeta(chan);
+    metaTimer = setInterval(() => fetchRPMeta(chan), 30000);
+    return;
+  }
+  // Chilltrax
+  if (station.meta === 'chilltrax') {
+    fetchChilltraxMeta();
+    metaTimer = setInterval(fetchChilltraxMeta, 30000);
+    return;
+  }
+  // FIP / France Musique — detect from URL
+  const fipMatch = station.url.match(/radiofrance\.fr\/(fip[a-z]*|francemusique)/);
+  if (fipMatch) {
+    const fipStation = fipMatch[1] === 'francemusique' ? 'francemusique' : fipMatch[1] === 'fip' ? 'fip' : fipMatch[1];
+    fetchFIPMeta(fipStation);
+    metaTimer = setInterval(() => fetchFIPMeta(fipStation), 30000);
+    return;
+  }
+  // KEXP
+  if (station.url.includes('kexp')) {
+    fetchKEXPMeta();
+    metaTimer = setInterval(fetchKEXPMeta, 60000);
+    return;
+  }
+}
+
+function stopMetadataPolling() {
+  if (metaTimer) { clearInterval(metaTimer); metaTimer = null; }
+  currentMetaChannel = null;
+}
+
+function fetchSomaMeta(channel) {
+  fetch('https://api.somafm.com/songs/' + channel + '.json')
+    .then(r => r.json())
+    .then(data => {
+      if (data.songs && data.songs[0] && currentMetaChannel === channel && !isLocalFile) {
+        const s = data.songs[0];
+        trackInfo.textContent = s.artist + ' — ' + s.title;
+      }
+    })
+    .catch(() => {});
+}
+
+function fetchRPMeta(chan) {
+  fetch('https://api.radioparadise.com/api/now_playing?chan=' + chan)
+    .then(r => r.json())
+    .then(data => {
+      if (data.artist && data.title && !isLocalFile) {
+        trackInfo.textContent = data.artist + ' — ' + data.title;
+      }
+    })
+    .catch(() => {});
+}
+
+function fetchChilltraxMeta() {
+  fetch('https://streamssl.chilltrax.com/stats?sid=1&json=1&_=' + Date.now())
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.songtitle && !isLocalFile && STATIONS[currentStation] && STATIONS[currentStation].meta === 'chilltrax') {
+        trackInfo.textContent = data.songtitle;
+      }
+    })
+    .catch(() => {
+      fetch('https://streamssl.chilltrax.com/currentsong?sid=1&_=' + Date.now())
+        .then(r => r.text())
+        .then(text => {
+          const t = text.trim();
+          if (t && !isLocalFile && STATIONS[currentStation] && STATIONS[currentStation].meta === 'chilltrax') {
+            trackInfo.textContent = t;
+          }
+        })
+        .catch(() => {});
+    });
+}
+
+function fetchFIPMeta(station) {
+  fetch('https://api.radiofrance.fr/livemeta/live/7/' + (station === 'fip' ? '1' : station === 'fiprock' ? '64' : station === 'fipjazz' ? '65' : station === 'fipelectro' ? '66' : station === 'francemusique' ? '4' : '1') + '/webrf_' + (station === 'francemusique' ? 'francemusique' : station) + '_player?preset=200x200')
+    .catch(() => {
+      // Fallback: use Open API
+      fetch('https://www.radiofrance.fr/api/v2.1/stations/' + station + '/live')
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.now && data.now.firstLine && !isLocalFile) {
+            const line2 = data.now.secondLine || '';
+            trackInfo.textContent = line2 ? data.now.firstLine + ' — ' + line2 : data.now.firstLine;
+          }
+        })
+        .catch(() => {});
+    });
+}
+
+function fetchKEXPMeta() {
+  fetch('https://api.kexp.org/v2/plays/?format=json&limit=1&ordering=-airdate')
+    .then(r => r.json())
+    .then(data => {
+      if (data.results && data.results[0] && !isLocalFile) {
+        const play = data.results[0];
+        if (play.artist && play.song) {
+          trackInfo.textContent = play.artist + ' — ' + play.song;
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+// ─── PROGRESS BAR ────────────────────────────────────────────
+function updateProgress() {
+  if (!isPlaying) return;
+  const station = STATIONS[currentStation];
+  if (station && station.type === 'playlist' && !isLocalFile) {
+    if (audioRaw.duration && audioRaw.duration !== Infinity) {
+      progressFill.style.width = (audioRaw.currentTime / audioRaw.duration * 100) + '%';
+    } else {
+      progressFill.style.width = '0%';
+    }
+  } else if (isLocalFile && activeAudio().duration) {
+    progressFill.style.width = (activeAudio().currentTime / activeAudio().duration * 100) + '%';
+  } else {
+    progressFill.style.width = '0%';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// WEBGL VISUALIZER
+// ═══════════════════════════════════════════════════════════════
+
+let gl, programInfo = {}, currentProgram = null;
+let fftTex, waveTex, quadVAO;
+let startTime = performance.now() / 1000;
+let animFrame;
+const shaderCache = {};
+
+// ─── SHADER SOURCES ──────────────────────────────────────────
+const VERT_SRC = `#version 300 es
+in vec2 a_pos;
+void main(){ gl_Position=vec4(a_pos,0,1); }`;
+
+const FRAG_HEADER = `#version 300 es
+precision highp float;
+uniform sampler2D u_fft;
+uniform sampler2D u_wave;
+uniform float u_time;
+uniform vec2 u_res;
+uniform float u_bass,u_mid,u_treble,u_vol;
+uniform vec3 u_c1,u_c2,u_c3;
+uniform float u_speed,u_sens,u_bloom,u_bright,u_contrast,u_sat,u_scale,u_rot;
+uniform int u_mirror;
+uniform float u_pix;
+uniform bool u_scan,u_vig,u_inv,u_gray;
+uniform int u_colorMode;
+uniform float u_react;
+out vec4 O;
+
+float F(float x){return texture(u_fft,vec2(clamp(x,0.,1.),.5)).r*u_sens;}
+float W(float x){return texture(u_wave,vec2(clamp(x,0.,1.),.5)).r*2.-1.;}
+
+vec3 hsv(float h,float s,float v){
+  vec3 c=clamp(abs(mod(h*6.+vec3(0,4,2),6.)-3.)-1.,0.,1.);
+  return v*mix(vec3(1),c,s);
+}
+
+vec2 prep(vec2 fc){
+  vec2 uv=fc/u_res;
+  if(u_pix>0.){float p=max(u_res.x,u_res.y)/max(u_pix,1.);uv=floor(uv*p)/p;}
+  if(u_mirror==1||u_mirror==3)uv.x=uv.x<.5?uv.x*2.:(1.-uv.x)*2.;
+  if(u_mirror>=2)uv.y=uv.y<.5?uv.y*2.:(1.-uv.y)*2.;
+  uv=((uv-.5)/u_scale)+.5;
+  float a=u_rot*u_time*.2;
+  if(abs(a)>0.001){float s=sin(a),c=cos(a);uv-=.5;uv=mat2(c,-s,s,c)*uv;uv+=.5;}
+  return uv;
+}
+
+vec3 applyColor(vec3 base,vec2 uv){
+  if(u_colorMode==1){
+    float f=F(uv.x);
+    return mix(u_c1,u_c2,f)*length(base);
+  }else if(u_colorMode==2){
+    float h=fract(u_time*.05);
+    return hsv(h,.8,.9)*length(base);
+  }else if(u_colorMode==3){
+    return mix(u_c1,u_c2,u_react)*length(base);
+  }
+  return base;
+}
+
+vec3 post(vec3 c,vec2 uv){
+  c*=u_bright;
+  c=(c-.5)*u_contrast+.5;
+  float g=dot(c,vec3(.299,.587,.114));
+  c=mix(vec3(g),c,u_sat);
+  float lum=dot(c,vec3(.299,.587,.114));
+  c+=c*smoothstep(.4,1.,lum)*u_bloom;
+  if(u_scan)c*=.85+.15*sin(uv.y*u_res.y*1.5);
+  if(u_vig){float v=1.-dot(uv-.5,uv-.5)*2.;c*=clamp(v,0.,1.);}
+  if(u_inv)c=1.-c;
+  if(u_gray){float gg=dot(c,vec3(.299,.587,.114));c=vec3(gg);}
+  return clamp(c,0.,1.);
+}
+`;
+
+const SHADERS = {
+  bars: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  float t=u_time*u_speed;
+  float nb=64.;
+  float bw=1./nb;
+  float bi=floor(uv.x/bw);
+  float bc=(bi+.5)*bw;
+  float bx=bi/nb;
+  float f=F(bx);
+  float bar=smoothstep(bw*.48,bw*.42,abs(uv.x-bc))*step(uv.y,f);
+  vec3 col=mix(u_c1,u_c2,uv.y/max(f,.01))*bar;
+  float cd=length(vec2((uv.x-bc)*4.,uv.y-f));
+  col+=u_c3*smoothstep(.03,0.,cd)*.8;
+  col+=u_c1*.15*exp(-abs(uv.y-f)*30.)*smoothstep(bw*.5,0.,abs(uv.x-bc));
+  if(uv.y<0.05){
+    float rf=F(bx)*(.05-uv.y)/.05*.25;
+    col+=mix(u_c1,u_c2,.5)*rf*smoothstep(bw*.48,bw*.42,abs(uv.x-bc));
+  }
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  wave: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  float t=u_time*u_speed;
+  vec3 col=vec3(0);
+  for(int i=0;i<3;i++){
+    float fi=float(i);
+    float off=fi*.003;
+    float w=W(uv.x+off)*.4*u_sens;
+    float d=abs(uv.y-.5-w);
+    float line=smoothstep(.008,0.,d);
+    float glo=exp(-d*60.)*.4;
+    vec3 lc=i==0?u_c1:i==1?u_c2:u_c3;
+    col+=lc*(line+glo)*(.7+.3*sin(t+fi*2.));
+  }
+  float w2=W(uv.x+.1)*.2*u_sens;
+  col+=u_c2*.1*exp(-abs(uv.y-.5-w2)*30.);
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  radial: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  vec2 c=(uv-.5)*vec2(u_res.x/u_res.y,1.);
+  float a=atan(c.y,c.x);
+  float r=length(c);
+  float t=u_time*u_speed;
+  float an=(a/6.28318+.5);
+  float f=F(an);
+  float inner=.15+u_bass*.08;
+  float outer=inner+f*.35;
+  float bar=smoothstep(outer,outer-.01,r)*smoothstep(inner-.01,inner,r);
+  float seg=64.;
+  float sa=fract(an*seg);
+  bar*=smoothstep(.05,0.1,sa)*smoothstep(.95,.9,sa);
+  vec3 col=mix(u_c1,u_c2,an)*bar;
+  col+=u_c3*exp(-r*15.)*.5*(1.+u_bass);
+  col+=u_c1*.3*exp(-abs(r-outer)*80.)*f;
+  float ma=mod(a+t*.5,6.28318/8.);
+  if(ma<.05)col+=u_c3*.3*smoothstep(outer+.05,outer,r);
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  plasma: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  float t=u_time*u_speed*.5;
+  vec2 p=uv*4.;
+  float v=0.;
+  v+=sin(p.x*2.+t);
+  v+=sin(p.y*3.+t*.7);
+  v+=sin((p.x+p.y)*1.5+t*1.3);
+  v+=sin(length(p-vec2(2))*3.+t*1.1);
+  v+=sin(length(p-vec2(1,3))*2.5-t*.9);
+  v*=.2;
+  v*=(.5+u_vol*u_sens*2.);
+  v+=u_bass*.3*sin(p.x*5.+t*2.);
+  v+=u_treble*.2*sin(p.y*8.-t*3.);
+  vec3 col=mix(u_c1,u_c2,sin(v*3.14159)*.5+.5);
+  col+=u_c3*smoothstep(.8,1.,sin(v*6.)*.5+.5)*.4;
+  col*=.6+u_vol*.6;
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  tunnel: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  vec2 c=(uv-.5)*vec2(u_res.x/u_res.y,1.);
+  float t=u_time*u_speed;
+  float a=atan(c.y,c.x);
+  float r=length(c);
+  float d=.3/r;
+  float tu=a/3.14159+t*.1;
+  float tv=d+t*.5;
+  float f1=F(fract(tu*.5));
+  float f2=F(fract(tv*.3));
+  float p1=sin(tu*8.)*sin(tv*8.)*.5+.5;
+  float p2=sin(tu*16.+t)*sin(tv*4.)*.5+.5;
+  vec3 col=mix(u_c1,u_c2,p1)*(.3+f1*.7);
+  col+=u_c3*p2*.3*f2;
+  col*=smoothstep(0.,.3,r);
+  col+=u_c1*exp(-r*3.)*.2*(1.+u_bass);
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  terrain: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  float t=u_time*u_speed*.3;
+  vec3 col=vec3(0);
+  float numLines=48.;
+  for(float i=0.;i<48.;i++){
+    float ly=i/numLines;
+    float depth=1.-ly;
+    float y0=.1+ly*.8;
+    float amp=.08*depth*u_sens;
+    float h=0.;
+    for(float j=0.;j<8.;j++){
+      float freq=2.+j*2.;
+      float fi=(uv.x*freq+j*.3+t);
+      h+=sin(fi*6.28318)*F(fract(j/8.+ly*.3))*amp/freq;
+    }
+    float screenY=y0+h;
+    float d=abs(uv.y-screenY);
+    float line=smoothstep(.004,.0,d);
+    float glow=exp(-d*200.*depth)*.3*depth;
+    vec3 lc=mix(u_c1,u_c2,ly);
+    col+=lc*(line+glow)*depth;
+  }
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  galaxy: `
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+  vec2 u=f*f*(3.-2.*f);
+  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise(p);p*=2.;a*=.5;}return v;}
+void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  vec2 c=(uv-.5)*vec2(u_res.x/u_res.y,1.);
+  float t=u_time*u_speed*.15;
+  float a=atan(c.y,c.x);
+  float r=length(c);
+  float spiral=a+r*6.-t*2.;
+  float arm=sin(spiral*2.)*.5+.5;
+  arm=pow(arm,2.);
+  float n=fbm(c*3.+t);
+  float stars=smoothstep(.75,.8,hash(floor(uv*200.)));
+  stars*=(.5+.5*sin(hash(floor(uv*200.))*100.+u_time*3.));
+  float density=arm*exp(-r*3.)*(1.+n*.5);
+  density*=(.5+u_vol*u_sens);
+  vec3 col=mix(u_c1,u_c2,n)*density;
+  col+=u_c3*stars*.5*exp(-r*2.);
+  col+=mix(u_c1,u_c3,.5)*exp(-r*8.)*.6*(1.+u_bass);
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+  outrun: `void main(){
+  vec2 uv=prep(gl_FragCoord.xy);
+  float t=u_time*u_speed;
+  vec3 col=vec3(0);
+  float sky=smoothstep(.55,.35,uv.y);
+  col+=mix(vec3(0),u_c1*.15,sky);
+  vec2 sc=vec2(.5,.42);
+  float sd=length((uv-sc)*vec2(u_res.x/u_res.y,1.));
+  float sun=smoothstep(.12,.11,sd);
+  float stripe=step(.5,fract(uv.y*30.-t*.5));
+  sun*=mix(stripe,.8,smoothstep(.12,.06,sd));
+  col+=mix(u_c2,u_c3,.5)*sun*1.2;
+  col+=u_c2*exp(-sd*10.)*.3;
+  if(uv.y>.5){
+    float gy=(uv.y-.5)/.5;
+    float perspective=1./(1.001-gy);
+    float gx=(uv.x-.5)*perspective;
+    float gz=fract(perspective*.2-t*.5);
+    float lineH=smoothstep(.02,0.,abs(gz-.5)-.47)*gy;
+    float lineV=smoothstep(.02,0.,abs(fract(gx*.5)-.5)-.47)*gy;
+    float grid=max(lineH,lineV);
+    col+=u_c1*grid*.6;
+    float fx=uv.x;
+    float fh=F(fx)*.25*u_sens;
+    float mtnY=.5-fh*(1.-gy*.5);
+    if(uv.y>mtnY&&uv.y<.5+.02){col+=u_c2*.4;}
+    float mtnLine=smoothstep(.003,0.,abs(uv.y-mtnY))*step(mtnY,.5);
+    col+=u_c3*mtnLine;
+    col+=u_c1*.05*exp(-gy*3.);
+  }
+  col=applyColor(col,uv);
+  O=vec4(post(col,uv),1);
+}`,
+};
+
+// ─── WEBGL SETUP ─────────────────────────────────────────────
+function initGL() {
+  gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false });
+  if (!gl) { alert('WebGL2 required'); return; }
+  resizeCanvas();
+  const verts = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+  quadVAO = gl.createVertexArray();
+  gl.bindVertexArray(quadVAO);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  fftTex = createDataTexture(BIN_COUNT);
+  waveTex = createDataTexture(BIN_COUNT);
+  compileShader(settings.template);
+}
+
+function createDataTexture(width) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, width, 1, 0, gl.RED, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return tex;
+}
+
+function compileShader(name) {
+  if (shaderCache[name]) {
+    currentProgram = shaderCache[name];
+    gl.useProgram(currentProgram.prog);
+    return;
+  }
+  const fragSrc = FRAG_HEADER + (SHADERS[name] || SHADERS.bars);
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, VERT_SRC);
+  gl.compileShader(vs);
+  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) { console.error('VS:', gl.getShaderInfoLog(vs)); return; }
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, fragSrc);
+  gl.compileShader(fs);
+  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) { console.error('FS ' + name + ':', gl.getShaderInfoLog(fs)); return; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.bindAttribLocation(prog, 0, 'a_pos');
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error('Link:', gl.getProgramInfoLog(prog)); return; }
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+  const info = { prog };
+  const uNames = ['u_fft','u_wave','u_time','u_res','u_bass','u_mid','u_treble','u_vol',
+    'u_c1','u_c2','u_c3','u_speed','u_sens','u_bloom','u_bright','u_contrast','u_sat',
+    'u_scale','u_rot','u_mirror','u_pix','u_scan','u_vig','u_inv','u_gray','u_colorMode','u_react'];
+  uNames.forEach(n => info[n] = gl.getUniformLocation(prog, n));
+  shaderCache[name] = info;
+  currentProgram = info;
+  gl.useProgram(prog);
+}
+
+function resizeCanvas() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+function hexToGL(hex) {
+  return [parseInt(hex.slice(1,3),16)/255, parseInt(hex.slice(3,5),16)/255, parseInt(hex.slice(5,7),16)/255];
+}
+
+// ─── RENDER LOOP ─────────────────────────────────────────────
+function render() {
+  animFrame = requestAnimationFrame(render);
+  updateCrossfade();
+  updateProgress();
+  if (!vizRunning || vizPaused || currentView !== 'viz') return;
+  if (!gl || !currentProgram) return;
+
+  const now = performance.now() / 1000;
+  const time = now - startTime;
+
+  if (analyser && isPlaying) {
+    analyser.getByteFrequencyData(fftData);
+    analyser.getByteTimeDomainData(waveData);
+  } else {
+    for (let i = 0; i < BIN_COUNT; i++) {
+      fftData[i] = Math.max(0, Math.sin(i * 0.05 + now * 2) * 8 + 4) | 0;
+      waveData[i] = 128 + Math.sin(i * 0.1 + now * 3) * 5 | 0;
+    }
+  }
+
+  let bass = 0, mid = 0, treble = 0, vol = 0;
+  const bEnd = Math.floor(BIN_COUNT * 0.1);
+  const mEnd = Math.floor(BIN_COUNT * 0.5);
+  for (let i = 0; i < BIN_COUNT; i++) {
+    const v = fftData[i] / 255;
+    vol += v;
+    if (i < bEnd) bass += v;
+    else if (i < mEnd) mid += v;
+    else treble += v;
+  }
+  bass /= bEnd; mid /= (mEnd - bEnd); treble /= (BIN_COUNT - mEnd); vol /= BIN_COUNT;
+
+  let reactVal = vol;
+  if (settings.reactTo === 'bass') reactVal = bass;
+  else if (settings.reactTo === 'mid') reactVal = mid;
+  else if (settings.reactTo === 'treble') reactVal = treble;
+
+  // Beat sync: use FFT intensity for beat pulse (volume-independent)
+  let beatPulse = 0;
+  if (settings.bpmSync) {
+    // Use bass energy as beat indicator, normalized independent of volume
+    const rawBass = bass; // already 0..1
+    // Smooth envelope follower for beat detection
+    beatPulse = Math.pow(Math.min(1, rawBass * 2.5), 2);
+  }
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fftTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BIN_COUNT, 1, gl.RED, gl.UNSIGNED_BYTE, fftData);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, waveTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BIN_COUNT, 1, gl.RED, gl.UNSIGNED_BYTE, waveData);
+
+  const P = currentProgram;
+  gl.uniform1i(P.u_fft, 0);
+  gl.uniform1i(P.u_wave, 1);
+  gl.uniform1f(P.u_time, time);
+  gl.uniform2f(P.u_res, canvas.width, canvas.height);
+  gl.uniform1f(P.u_bass, bass);
+  gl.uniform1f(P.u_mid, mid);
+  gl.uniform1f(P.u_treble, treble);
+  gl.uniform1f(P.u_vol, vol);
+  const c1 = hexToGL(settings.color1), c2 = hexToGL(settings.color2), c3 = hexToGL(settings.color3);
+  gl.uniform3f(P.u_c1, c1[0], c1[1], c1[2]);
+  gl.uniform3f(P.u_c2, c2[0], c2[1], c2[2]);
+  gl.uniform3f(P.u_c3, c3[0], c3[1], c3[2]);
+  gl.uniform1f(P.u_speed, settings.speed * (1 + (settings.syncSpeed ? beatPulse * 0.5 : 0)));
+  gl.uniform1f(P.u_sens, settings.sensitivity);
+  gl.uniform1f(P.u_bloom, settings.bloom * (1 + (settings.syncBloom ? beatPulse * 0.6 : 0)));
+  gl.uniform1f(P.u_bright, settings.brightness * (1 + (settings.syncBright ? beatPulse * 0.15 : 0)));
+  gl.uniform1f(P.u_contrast, settings.contrast);
+  gl.uniform1f(P.u_sat, settings.saturation * (1 + (settings.syncSat ? beatPulse * 0.3 : 0)));
+  gl.uniform1f(P.u_scale, settings.scale * (1 + (settings.syncScale ? beatPulse * 0.08 : 0)));
+  gl.uniform1f(P.u_rot, settings.rotation + (settings.syncRotation ? beatPulse * 0.5 : 0));
+  gl.uniform1i(P.u_mirror, settings.mirror | 0);
+  gl.uniform1f(P.u_pix, settings.pixelate);
+  gl.uniform1i(P.u_scan, settings.scanlines ? 1 : 0);
+  gl.uniform1i(P.u_vig, settings.vignette ? 1 : 0);
+  gl.uniform1i(P.u_inv, settings.invert ? 1 : 0);
+  gl.uniform1i(P.u_gray, settings.grayscale ? 1 : 0);
+  const cmMap = { static: 0, frequency: 1, cycle: 2, reactive: 3 };
+  gl.uniform1i(P.u_colorMode, cmMap[settings.colorMode] || 0);
+  gl.uniform1f(P.u_react, reactVal);
+
+  const bg = hexToGL(settings.bgColor);
+  gl.clearColor(bg[0], bg[1], bg[2], 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bindVertexArray(quadVAO);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VIEW SWITCHING
+// ═══════════════════════════════════════════════════════════════
+
+function switchView(view) {
+  if (currentView === view) return;
+  const prevView = currentView;
+  currentView = view;
+  // Update active button
+  document.querySelectorAll('.view-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  // Highlight curve menu button when either sub-view is active
+  const cBtn = $('curve-menu-btn');
+  if (cBtn) cBtn.classList.toggle('active', view === 'curve' || view === 'retro');
+  // Hide all ext frames
+  document.querySelectorAll('.ext-frame').forEach(f => f.classList.remove('active'));
+  // Hide Archive TV wrap
+  $('tv-wrap').classList.remove('active');
+  stopArchiveTV();
+  // Offload previous view's iframe if keepViewsLoaded is off
+  if (!settings.keepViewsLoaded && prevView && VIEW_FRAMES[prevView]) {
+    const prevFrame = $(VIEW_FRAMES[prevView]);
+    if (prevFrame) { prevFrame.removeAttribute('src'); loadedViews[prevView] = false; }
+  }
+  // Show/hide SFX and fullscreen buttons (only on viz view)
+  sfxBtn.classList.toggle('hidden-view', view !== 'viz');
+  fsBtn.classList.toggle('hidden-view', view !== 'viz');
+  if (view === 'viz') {
+    canvas.style.display = 'block';
+    vizRunning = true;
+    resizeCanvas();
+  } else if (view === 'linktv') {
+    canvas.style.display = 'none';
+    vizRunning = false;
+    $('tv-wrap').classList.add('active');
+    startArchiveTV();
+  } else {
+    canvas.style.display = 'none';
+    vizRunning = false;
+    const frameId = VIEW_FRAMES[view];
+    const frame = $(frameId);
+    if (frame) {
+      if (!loadedViews[view]) {
+        frame.src = VIEWS[view];
+        loadedViews[view] = true;
+      }
+      frame.classList.add('active');
+    }
+  }
+}
+
+let currentAiUrl = '';
+function openAiView(url) {
+  // Offload previous view if keepViewsLoaded is off
+  if (!settings.keepViewsLoaded && currentView && VIEW_FRAMES[currentView]) {
+    const prevFrame = $(VIEW_FRAMES[currentView]);
+    if (prevFrame) { prevFrame.removeAttribute('src'); loadedViews[currentView] = false; }
+  }
+  // Stop Archive TV
+  $('tv-wrap').classList.remove('active');
+  stopArchiveTV();
+  // Enter AI view mode: hide radio bar, settings, fullscreen
+  document.body.classList.add('ai-view-active');
+  // Highlight AI button, deactivate others
+  document.querySelectorAll('.view-btn[data-view]').forEach(b => b.classList.remove('active'));
+  $('ai-menu-btn').classList.add('active');
+  $('radio-toggle-btn').classList.remove('active');
+  // Hide canvas and other frames
+  canvas.style.display = 'none';
+  vizRunning = false;
+  document.querySelectorAll('.ext-frame').forEach(f => f.classList.remove('active'));
+  // Load AI iframe
+  const frame = $('frame-ai');
+  if (currentAiUrl !== url) {
+    frame.src = url;
+    currentAiUrl = url;
+  }
+  frame.classList.add('active');
+  currentView = 'ai';
+}
+
+function exitAiView() {
+  if (!document.body.classList.contains('ai-view-active')) return;
+  document.body.classList.remove('ai-view-active');
+  $('ai-menu-btn').classList.remove('active');
+  // Restore radio bar if it wasn't collapsed before
+  // (the CSS class handles the hide, removing it restores previous state)
+  currentAiUrl = '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS & PRESETS
+// ═══════════════════════════════════════════════════════════════
+
+function applySettings() {
+  if (analyser) analyser.smoothingTimeConstant = settings.smoothing;
+  document.body.style.background = settings.bgColor;
+  if (gl) compileShader(settings.template);
+  // Apply reverb/echo to Web Audio nodes
+  if (reverbGain) reverbGain.gain.value = settings.reverbMix;
+  if (dryGain) dryGain.gain.value = 1 - settings.reverbMix * 0.5;
+  if (echoDelay) echoDelay.delayTime.value = Math.max(0.01, settings.echoDelay || 0.01);
+  if (echoFeedback) echoFeedback.gain.value = settings.echoFeedback;
+  if (echoGain) echoGain.gain.value = settings.echoDelay > 0 ? settings.echoMix : 0;
+  if (echoDry) echoDry.gain.value = 1;
+}
+
+function settingsToUI() {
+  $('s-template').value = settings.template;
+  $('s-color1').value = settings.color1;
+  $('s-color2').value = settings.color2;
+  $('s-color3').value = settings.color3;
+  $('s-bgColor').value = settings.bgColor;
+  $('s-colorMode').value = settings.colorMode;
+  $('s-sensitivity').value = settings.sensitivity;
+  $('s-smoothing').value = settings.smoothing;
+  $('s-reactTo').value = settings.reactTo;
+  $('s-speed').value = settings.speed;
+  $('s-scale').value = settings.scale;
+  $('s-rotation').value = settings.rotation;
+  $('s-bloom').value = settings.bloom;
+  $('s-brightness').value = settings.brightness;
+  $('s-contrast').value = settings.contrast;
+  $('s-saturation').value = settings.saturation;
+  $('s-mirror').value = settings.mirror;
+  $('s-scanlines').checked = settings.scanlines;
+  $('s-vignette').checked = settings.vignette;
+  $('s-invert').checked = settings.invert;
+  $('s-grayscale').checked = settings.grayscale;
+  $('s-pixelate').value = settings.pixelate;
+  $('s-bpmSync').checked = settings.bpmSync;
+  $('s-syncSpeed').checked = settings.syncSpeed;
+  $('s-syncScale').checked = settings.syncScale;
+  $('s-syncRotation').checked = settings.syncRotation;
+  $('s-syncBloom').checked = settings.syncBloom;
+  $('s-syncBright').checked = settings.syncBright;
+  $('s-syncSat').checked = settings.syncSat;
+  $('s-reverbMix').value = settings.reverbMix;
+  $('s-echoDelay').value = settings.echoDelay;
+  $('s-echoFeedback').value = settings.echoFeedback;
+  $('s-echoMix').value = settings.echoMix;
+  $('s-keepViewsLoaded').checked = settings.keepViewsLoaded;
+  updateAllVals();
+}
+
+function uiToSettings() {
+  settings.template = $('s-template').value;
+  settings.color1 = $('s-color1').value;
+  settings.color2 = $('s-color2').value;
+  settings.color3 = $('s-color3').value;
+  settings.bgColor = $('s-bgColor').value;
+  settings.colorMode = $('s-colorMode').value;
+  settings.sensitivity = parseFloat($('s-sensitivity').value);
+  settings.smoothing = parseFloat($('s-smoothing').value);
+  settings.reactTo = $('s-reactTo').value;
+  settings.speed = parseFloat($('s-speed').value);
+  settings.scale = parseFloat($('s-scale').value);
+  settings.rotation = parseFloat($('s-rotation').value);
+  settings.bloom = parseFloat($('s-bloom').value);
+  settings.brightness = parseFloat($('s-brightness').value);
+  settings.contrast = parseFloat($('s-contrast').value);
+  settings.saturation = parseFloat($('s-saturation').value);
+  settings.mirror = parseInt($('s-mirror').value);
+  settings.scanlines = $('s-scanlines').checked;
+  settings.vignette = $('s-vignette').checked;
+  settings.invert = $('s-invert').checked;
+  settings.grayscale = $('s-grayscale').checked;
+  settings.pixelate = parseFloat($('s-pixelate').value);
+  settings.bpmSync = $('s-bpmSync').checked;
+  settings.syncSpeed = $('s-syncSpeed').checked;
+  settings.syncScale = $('s-syncScale').checked;
+  settings.syncRotation = $('s-syncRotation').checked;
+  settings.syncBloom = $('s-syncBloom').checked;
+  settings.syncBright = $('s-syncBright').checked;
+  settings.syncSat = $('s-syncSat').checked;
+  settings.reverbMix = parseFloat($('s-reverbMix').value);
+  settings.echoDelay = parseFloat($('s-echoDelay').value);
+  settings.echoFeedback = parseFloat($('s-echoFeedback').value);
+  settings.echoMix = parseFloat($('s-echoMix').value);
+  settings.keepViewsLoaded = $('s-keepViewsLoaded').checked;
+  applySettings();
+}
+
+function updateAllVals() {
+  document.querySelectorAll('.val[data-for]').forEach(el => {
+    const input = $(el.dataset.for);
+    if (!input) return;
+    const step = parseFloat(input.step) || 1;
+    const v = parseFloat(input.value);
+    el.textContent = step >= 1 ? Math.round(v).toString() : v.toFixed(1);
+  });
+}
+
+// ─── PRESETS ─────────────────────────────────────────────────
+function loadPresets() {
+  try { return JSON.parse(localStorage.getItem('rc-presets') || '{}'); } catch(e) { return {}; }
+}
+function savePresets(presets) { localStorage.setItem('rc-presets', JSON.stringify(presets)); }
+
+function refreshPresetList() {
+  const sel = $('preset-select');
+  const presets = loadPresets();
+  sel.innerHTML = '<option value="">— select preset —</option>';
+  Object.keys(presets).sort().forEach(name => {
+    const o = document.createElement('option');
+    o.value = name; o.textContent = name;
+    sel.appendChild(o);
+  });
+}
+
+function savePreset() {
+  const name = $('preset-name').value.trim();
+  if (!name) return;
+  const presets = loadPresets();
+  presets[name] = { ...settings };
+  savePresets(presets);
+  refreshPresetList();
+  $('preset-select').value = name;
+  $('preset-name').value = '';
+}
+
+function loadPreset() {
+  const name = $('preset-select').value;
+  if (!name) return;
+  const presets = loadPresets();
+  if (presets[name]) { settings = { ...DEFAULTS, ...presets[name] }; settingsToUI(); applySettings(); }
+}
+
+function deletePreset() {
+  const name = $('preset-select').value;
+  if (!name) return;
+  const presets = loadPresets();
+  delete presets[name];
+  savePresets(presets);
+  refreshPresetList();
+}
+
+function exportSettings() {
+  const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'link-settings.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+function importSettings() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try { settings = { ...DEFAULTS, ...JSON.parse(ev.target.result) }; settingsToUI(); applySettings(); }
+      catch(err) { console.error('Import failed:', err); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function resetSettings() { settings = { ...DEFAULTS }; settingsToUI(); applySettings(); }
+
+// ─── AUTO-SAVE / FIRST RUN ──────────────────────────────────
+function autoSave() {
+  localStorage.setItem('rc-last-settings', JSON.stringify(settings));
+  localStorage.setItem('rc-last-station', currentStation);
+  localStorage.setItem('rc-last-playing', isPlaying ? '1' : '0');
+  localStorage.setItem('rc-last-volume', volumeSlider.value);
+  localStorage.setItem('rc-initialized', '1');
+}
+
+function autoLoad() {
+  const isFirstRun = !localStorage.getItem('rc-initialized');
+  if (isFirstRun) {
+    settings = { ...DEFAULTS };
+    currentStation = 0;
+    return;
+  }
+  try {
+    const saved = JSON.parse(localStorage.getItem('rc-last-settings'));
+    if (saved) settings = { ...DEFAULTS, ...saved };
+  } catch(e) {}
+  try {
+    const st = parseInt(localStorage.getItem('rc-last-station'));
+    if (!isNaN(st) && st >= 0 && st < STATIONS.length) currentStation = st;
+  } catch(e) {}
+  try {
+    const vol = parseInt(localStorage.getItem('rc-last-volume'));
+    if (!isNaN(vol)) volumeSlider.value = vol;
+  } catch(e) {}
+  vizPaused = localStorage.getItem('rc-viz-paused') === '1';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════
+
+function initUI() {
+  populateStations();
+  stationSelect.value = currentStation;
+
+  playBtn.addEventListener('click', togglePlay);
+  $('prev-station').addEventListener('click', () => switchStation(currentStation - 1));
+  $('next-station').addEventListener('click', () => switchStation(currentStation + 1));
+  stationSelect.addEventListener('change', () => switchStation(parseInt(stationSelect.value)));
+
+  // Volume → masterGain + rawAudio
+  volumeSlider.addEventListener('input', () => {
+    const vol = volumeSlider.value / 100;
+    if (masterGain) masterGain.gain.value = vol;
+    audioRaw.volume = vol;
+    volIcon.textContent = volumeSlider.value == 0 ? '🔇' : volumeSlider.value < 40 ? '🔈' : volumeSlider.value < 70 ? '🔉' : '🔊';
+  });
+  volIcon.addEventListener('click', () => {
+    if (volumeSlider.value > 0) { volumeSlider.dataset.prev = volumeSlider.value; volumeSlider.value = 0; }
+    else { volumeSlider.value = volumeSlider.dataset.prev || 80; }
+    volumeSlider.dispatchEvent(new Event('input'));
+  });
+
+  recBtn.addEventListener('click', () => { isRecording ? stopRecording() : startRecording(); });
+  localFileInput.addEventListener('change', e => {
+    if (e.target.files[0]) loadLocalFile(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  progressWrap.addEventListener('click', e => {
+    if (isLocalFile && activeAudio().duration) {
+      const rect = progressWrap.getBoundingClientRect();
+      activeAudio().currentTime = ((e.clientX - rect.left) / rect.width) * activeAudio().duration;
+    }
+  });
+
+  settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); settingsPanel.classList.toggle('open'); sfxPanel.classList.remove('open'); });
+  $('close-settings').addEventListener('click', () => settingsPanel.classList.remove('open'));
+  sfxBtn.addEventListener('click', (e) => { e.stopPropagation(); sfxPanel.classList.toggle('open'); settingsPanel.classList.remove('open'); });
+  // Archive TV gesture controls
+  initTVGestures();
+  // TV download button
+  $('tv-dl-btn').addEventListener('click', downloadTVVideo);
+  // Radio skip track buttons
+  $('skip-prev').addEventListener('click', skipPrevTrack);
+  $('skip-next').addEventListener('click', skipNextTrack);
+  // Click outside panels closes them
+  document.addEventListener('click', (e) => {
+    if (settingsPanel.classList.contains('open') && !settingsPanel.contains(e.target) && e.target !== settingsBtn) {
+      settingsPanel.classList.remove('open');
+    }
+    if (sfxPanel.classList.contains('open') && !sfxPanel.contains(e.target) && e.target !== sfxBtn) {
+      sfxPanel.classList.remove('open');
+    }
+  });
+  fsBtn.addEventListener('click', () => { toggleFullscreen(); fsBtn.blur(); });
+
+  // Bar collapse toggle
+  barToggle.addEventListener('click', () => {
+    const bar = $('radio-bar');
+    if (document.fullscreenElement) {
+      bar.classList.toggle('show-in-fs');
+    } else {
+      bar.classList.toggle('collapsed');
+    }
+  });
+
+  // Radio toggle button (right-side nav)
+  $('radio-toggle-btn').addEventListener('click', () => {
+    // If in AI view, exit it and restore visualizer
+    if (document.body.classList.contains('ai-view-active')) {
+      exitAiView();
+      // Show the bar
+      $('radio-bar').classList.remove('collapsed');
+      $('radio-toggle-btn').classList.add('active');
+      // Restore visualizer view
+      switchView('viz');
+      return;
+    }
+    const bar = $('radio-bar');
+    if (document.fullscreenElement) {
+      bar.classList.toggle('show-in-fs');
+    } else {
+      bar.classList.toggle('collapsed');
+    }
+    $('radio-toggle-btn').classList.toggle('active', !bar.classList.contains('collapsed'));
+  });
+
+  // Orb: click = cycle FX presets, long-tap on mobile = open chat
+  const brandEl = $('orb-wrap');
+  brandEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    cycleFXPreset();
+  });
+  brandEl.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+  });
+  let longTapTimer = null;
+  brandEl.addEventListener('touchstart', (e) => {
+    longTapTimer = setTimeout(() => { if (CHAT_ENABLED) toggleChat(); longTapTimer = null; }, 500);
+  }, { passive: true });
+  brandEl.addEventListener('touchend', () => { if (longTapTimer) clearTimeout(longTapTimer); });
+  brandEl.addEventListener('touchmove', () => { if (longTapTimer) clearTimeout(longTapTimer); });
+
+  // Init bar particles
+  initBarParticles();
+
+  // View toggle buttons (skip radio-toggle and ai-menu which have no data-view)
+  document.querySelectorAll('.view-btn[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      exitAiView();
+      switchView(btn.dataset.view);
+    });
+  });
+
+  // AI menu button
+  const aiMenuBtn = $('ai-menu-btn');
+  const aiMenu = $('ai-menu');
+  const aiMenuWrap = $('ai-menu-wrap');
+  aiMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    aiMenu.classList.toggle('open');
+    curveMenu.classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!aiMenuWrap.contains(e.target)) aiMenu.classList.remove('open');
+  });
+  document.querySelectorAll('.ai-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Handle curve menu items (data-view)
+      if (item.dataset.view) {
+        exitAiView();
+        switchView(item.dataset.view);
+        curveMenu.classList.remove('open');
+        aiMenu.classList.remove('open');
+        return;
+      }
+      const key = item.dataset.ai;
+      if (!key || !AI_URLS[key]) return;
+      if (item.hasAttribute('data-external')) {
+        window.open(AI_URLS[key], '_blank', 'noopener');
+      } else {
+        openAiView(AI_URLS[key]);
+      }
+      aiMenu.classList.remove('open');
+    });
+  });
+
+  // Curve submenu
+  const curveMenuBtn = $('curve-menu-btn');
+  const curveMenu = $('curve-menu');
+  const curveMenuWrap = $('curve-menu-wrap');
+  curveMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    curveMenu.classList.toggle('open');
+    aiMenu.classList.remove('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!curveMenuWrap.contains(e.target)) curveMenu.classList.remove('open');
+  });
+
+  // Settings inputs
+  const handleSettingsInput = (el) => {
+    const evt = el.type === 'range' ? 'input' : 'change';
+    el.addEventListener(evt, () => {
+      uiToSettings();
+      if (el.type === 'range') {
+        const valEl = el.nextElementSibling;
+        if (valEl && valEl.classList.contains('val')) {
+          const step = parseFloat(el.step) || 1;
+          const v = parseFloat(el.value);
+          valEl.textContent = step >= 1 ? Math.round(v).toString() : v.toFixed(1);
+        }
+      }
+      autoSave();
+    });
+  };
+  settingsPanel.querySelectorAll('input, select').forEach(handleSettingsInput);
+  sfxPanel.querySelectorAll('input, select').forEach(handleSettingsInput);
+
+  $('preset-select').addEventListener('change', loadPreset);
+  $('preset-save').addEventListener('click', savePreset);
+  $('preset-delete').addEventListener('click', deletePreset);
+  $('preset-import').addEventListener('click', importSettings);
+  $('preset-export').addEventListener('click', exportSettings);
+  $('preset-reset').addEventListener('click', resetSettings);
+  refreshPresetList();
+
+  // Canvas gestures: single tap=fullscreen, double tap=mute, long tap=play/pause
+  let tapCount = 0, tapTimer = null, longTapTimer2 = null;
+  function handleSingleTap() { toggleFullscreen(); }
+  function handleDoubleTap() {
+    if (volumeSlider.value > 0) { volumeSlider.dataset.prev = volumeSlider.value; volumeSlider.value = 0; }
+    else { volumeSlider.value = volumeSlider.dataset.prev || 80; }
+    volumeSlider.dispatchEvent(new Event('input'));
+  }
+  canvas.addEventListener('click', e => {
+    e.preventDefault();
+    tapCount++;
+    if (tapCount === 1) { tapTimer = setTimeout(() => { if (tapCount === 1) handleSingleTap(); tapCount = 0; }, 300); }
+    else if (tapCount === 2) { clearTimeout(tapTimer); handleDoubleTap(); tapCount = 0; }
+  });
+  canvas.addEventListener('touchstart', e => {
+    longTapTimer2 = setTimeout(() => { togglePlay(); longTapTimer2 = null; }, 500);
+  }, { passive: true });
+  canvas.addEventListener('touchend', e => { if (longTapTimer2) clearTimeout(longTapTimer2); });
+  canvas.addEventListener('touchmove', e => { if (longTapTimer2) clearTimeout(longTapTimer2); });
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    vizPaused = !vizPaused;
+    localStorage.setItem('rc-viz-paused', vizPaused ? '1' : '0');
+  });
+
+  window.addEventListener('resize', () => { if (currentView === 'viz') resizeCanvas(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.code === 'ArrowLeft') switchStation(currentStation - 1);
+    else if (e.code === 'ArrowRight') switchStation(currentStation + 1);
+    else if (e.code === 'KeyF') toggleFullscreen();
+    else if (e.code === 'KeyS') settingsPanel.classList.toggle('open');
+    else if (e.code === 'KeyR') { isRecording ? stopRecording() : startRecording(); }
+  });
+
+  window.addEventListener('beforeunload', autoSave);
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const isFs = !!document.fullscreenElement;
+  document.body.classList.toggle('fs-active', isFs);
+  const bar = $('radio-bar');
+  if (!isFs) {
+    bar.classList.remove('show-in-fs');
+  }
+});
+
+// ─── BAR PARTICLES ───────────────────────────────────────────
+function initBarParticles() {
+  const container = $('bar-particles');
+  const count = 20;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.classList.add('bp');
+    p.style.left = (Math.random() * 100) + '%';
+    p.style.bottom = (Math.random() * 20) + 'px';
+    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.animationDelay = (Math.random() * 3) + 's';
+    p.style.width = p.style.height = (1 + Math.random() * 2) + 'px';
+    container.appendChild(p);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT SYSTEM (Gun.js P2P + WebRTC + localStorage DMs)
+// ═══════════════════════════════════════════════════════════════
+
+let chatName = '';
+let chatMode = 'public';
+let currentDmPeer = '';
+let gun, gunChat;
+const MAX_CHAT_MSGS = 200;
+const seenMsgIds = new Set();
+
+// ─── EMOJI DATA (proper array for compound emoji) ────────────
+const EMOJI_CATS = [
+  { icon: '😀', name: 'Smileys', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','🫠','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'] },
+  { icon: '👋', name: 'Hands', emojis: ['👋','🤚','🖐','✋','🖖','🫱','🫲','🫳','🫴','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👍','👎','✊','👊','🤛','🤜','👏','🙌','🫶','👐','🤲','🤝','🙏','💪','🦾','🤳','💅'] },
+  { icon: '❤️', name: 'Love', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','♥️','💋','💌','💐','🌹','🥀','💍','💎'] },
+  { icon: '🎉', name: 'Fun', emojis: ['🎉','🎊','🎈','🎁','🎀','🪅','🪆','🎗','🎟','🎫','🎖','🏆','🏅','🥇','🥈','🥉','⚽','🏀','🏈','⚾','🥎','🎾','🏐','🏉','🥏','🎱','🪀','🏓','🏸','🏒','🥍','🏏','🥊','🎳','⛳','🏹','🎣','🤿','🎽','🛹','🛼','🛷','⛸','🎿','⛷','🏂','🪂'] },
+  { icon: '🔥', name: 'Symbols', emojis: ['🔥','💥','⭐','🌟','✨','⚡','💫','🌈','☀️','🌤','⛅','🌥','☁️','🌦','🌧','⛈','🌩','🌪','🌫','💨','💧','💦','🌊','🎵','🎶','🎼','🎤','🎧','📻','🎸','🎹','🎺','🎻','🪘','🥁','🪗','🎷','💯','✅','❌','‼️','⁉️','❓','❗','🔴','🟠','🟡','🟢','🔵','🟣','⚫','⚪','🟤','👀','👁','🗣'] },
+  { icon: '🍕', name: 'Food', emojis: ['🍕','🍔','🍟','🌭','🍿','🧂','🥓','🥚','🍳','🧇','🥞','🧈','🍞','🥐','🥨','🥯','🧀','🥗','🥙','🥪','🌮','🌯','🫔','🧆','🥘','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪','🍤','🍙','🍚','🍘','🍥','🥠','🥮','🍢','🍡','🍧','🍨','🍦','🥧','🧁','🍰','🎂','🍮','🍭','🍬','🍫','🍩','🍪','☕','🍵','🫖','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🍸','🍹','🧃','🥛','🍼'] },
+  { icon: '🐱', name: 'Animals', emojis: ['🐱','🐶','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐒','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🪱','🐛','🦋','🐌','🐞','🐜','🪰','🪲','🪳','🦂','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈'] },
+];
+
+// ─── STICKER PACKS ───────────────────────────────────────────
+const STICKER_PACKS = [
+  { icon: '⭐', name: 'Favorites', stickers: [] },
+  { icon: '😎', name: 'Moods', stickers: ['😎','🥺','😤','🤯','😴','🥳','😱','🤮','🥶','🥵','😇','🤡','👻','💀','🤖','👽','😈','👿','🫠','🤑','🫣','🫢','🤭','😏','🙄','😶‍🌫️','🥴','🤥','😬','🫨'] },
+  { icon: '👍', name: 'Reactions', stickers: ['👍','👎','👏','🙌','🤝','✌️','🤟','🤘','💪','🫶','❤️','🔥','💯','✨','⭐','🎉','🎊','💥','👀','🫡','🤷','🤦','🙏','✅','❌','⚡','💀','😂','🥹','🫠'] },
+  { icon: '🐾', name: 'Animals', stickers: ['🐱','🐶','🐻','🐼','🦊','🐸','🐵','🙈','🐷','🐮','🦁','🐯','🐰','🐨','🐧','🦄','🐙','🦋','🐝','🐢','🦈','🐬','🐳','🦕','🦖','🐍','🦎','🐊','🦩','🦜'] },
+  { icon: '🍕', name: 'Food', stickers: ['🍕','🍔','🌮','🍣','🍜','🍩','🍪','🧁','🍰','🎂','🍦','🍫','🍭','🍿','☕','🧋','🍺','🍷','🥂','🍹','🥑','🍌','🍉','🍓','🥐','🧀','🌭','🍟','🥤','🫖'] },
+  { icon: '💬', name: 'Chat', stickers: ['👋😊','✌️😎','👀❓','🤔💭','😂👍','🙏✨','💪🔥','🎉🥳','❤️‍🔥','💯🤝','😴💤','🤷‍♀️','🤦‍♂️','🫣👀','💀😂','😤💢','🥺🙏','😎🤙','🤮🫠','👻💨','🧠💡','⏰⌛','🚀🌙','🎵🎶','📱💬','🔒🔑','⚠️🚨','🎯🏆','💎✨','🌈☀️'] },
+  { icon: '❤️', name: 'Love', stickers: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💖','💝','💘','💕','💞','💓','💗','💌','💐','🌹','💍','😍','🥰','😘','💋','🫶','💑','👩‍❤️‍👨','💏','🥹❤️','✨❤️✨'] },
+];
+
+function initChat() {
+  // Gun.js with WebRTC for direct browser-to-browser P2P
+  // Relay servers handle initial peer discovery only
+  // Once connected, browsers sync directly via WebRTC
+  gun = Gun({
+    peers: [
+      'https://gun-manhattan.herokuapp.com/gun',
+      'https://gun-us.herokuapp.com/gun',
+    ],
+    localStorage: false,
+    rtc: { iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]}
+  });
+  gunChat = gun.get('link-radio-chat-v1');
+
+  // Restore saved name
+  const saved = localStorage.getItem('link-chat-name');
+  const remember = localStorage.getItem('link-chat-remember') === '1';
+  if (saved && remember) {
+    chatName = sanitizeName(saved);
+    $('chat-name-input').value = chatName;
+    $('chat-remember').checked = true;
+    $('chat-name-area').style.display = 'none';
+  }
+
+  // Listen for public messages (text + stickers)
+  gunChat.get('messages').map().on((msg, id) => {
+    if (!msg || !msg.name || seenMsgIds.has(id)) return;
+    if (!msg.text && !msg.sticker) return;
+    seenMsgIds.add(id);
+    const name = String(msg.name).slice(0, 20);
+    const time = typeof msg.time === 'number' ? msg.time : Date.now();
+    if (msg.sticker) {
+      addPublicMessage(name, null, time, String(msg.sticker).slice(0, 10));
+    } else {
+      addPublicMessage(name, String(msg.text).slice(0, 500), time);
+    }
+  });
+
+  // UI events
+  $('close-chat').addEventListener('click', () => $('chat-panel').classList.remove('open'));
+  $('chat-send').addEventListener('click', sendChatWrapper);
+  $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') sendChatWrapper(); });
+  $('chat-name-set').addEventListener('click', setName);
+  $('chat-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') setName(); });
+  $('chat-remember').addEventListener('change', e => {
+    localStorage.setItem('link-chat-remember', e.target.checked ? '1' : '0');
+    if (!e.target.checked) localStorage.removeItem('link-chat-name');
+  });
+
+  document.querySelectorAll('.chat-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.chat-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      if (tab.dataset.tab === 'public') showPublicChat();
+      else showDmList();
+    });
+  });
+
+  $('dm-back').addEventListener('click', showDmList);
+
+  // Privacy: clear all data
+  $('chat-clear-all').addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!confirm('Delete all chat data (name, DMs, emoji history, sticker favorites)?')) return;
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('link-dm-') || k.startsWith('link-chat-') || k === 'link-emoji-history' || k === 'link-sticker-favs') keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    chatName = '';
+    $('chat-name-area').style.display = '';
+    $('chat-name-input').value = '';
+    $('chat-remember').checked = false;
+    $('chat-messages').innerHTML = '';
+    $('chat-dm-list').innerHTML = '';
+    $('chat-dm-thread').innerHTML = '';
+    showPublicChat();
+    addSystemMsg('All chat data cleared.');
+  });
+
+  initEmojiPicker();
+}
+
+function sanitizeName(name) {
+  return String(name).replace(/[<>&"'/\\]/g, '').trim().slice(0, 20);
+}
+
+function toggleChat() {
+  const panel = $('chat-panel');
+  panel.classList.toggle('open');
+  // Close settings if open
+  if (panel.classList.contains('open')) {
+    $('settings-panel').classList.remove('open');
+    setTimeout(() => $('chat-input').focus(), 100);
+  }
+}
+
+function setName() {
+  const name = sanitizeName($('chat-name-input').value);
+  if (!name) return;
+  chatName = name;
+  $('chat-name-input').value = chatName;
+  if ($('chat-remember').checked) {
+    localStorage.setItem('link-chat-name', chatName);
+    localStorage.setItem('link-chat-remember', '1');
+  }
+  $('chat-name-area').style.display = 'none';
+  addSystemMsg('You are now known as ' + chatName);
+}
+
+function sendChat() {
+  const text = $('chat-input').value.trim().slice(0, 500);
+  if (!text || !chatName) {
+    if (!chatName) {
+      $('chat-name-input').focus();
+      $('chat-name-area').style.display = '';
+      addSystemMsg('Set a name first');
+    }
+    return;
+  }
+  $('chat-input').value = '';
+
+  if (chatMode === 'dm-thread' && currentDmPeer) {
+    sendDm(currentDmPeer, text);
+  } else {
+    const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const msg = { name: chatName, text: text, time: Date.now(), id: msgId };
+    seenMsgIds.add(msgId); // prevent echo from Gun
+    addPublicMessage(chatName, text, Date.now());
+    gunChat.get('messages').get(msgId).put(msg);
+  }
+}
+
+function sendSticker(sticker) {
+  if (!chatName) {
+    $('chat-name-input').focus();
+    $('chat-name-area').style.display = '';
+    addSystemMsg('Set a name first');
+    return;
+  }
+  if (chatMode === 'dm-thread' && currentDmPeer) {
+    sendDm(currentDmPeer, '[[sticker:' + sticker + ']]');
+  } else {
+    const msgId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const msg = { name: chatName, sticker: sticker, time: Date.now(), id: msgId };
+    seenMsgIds.add(msgId); // prevent echo from Gun
+    addPublicMessage(chatName, null, Date.now(), sticker);
+    gunChat.get('messages').get(msgId).put(msg);
+  }
+  $('emoji-picker').classList.remove('open');
+}
+
+function addPublicMessage(name, text, time, sticker) {
+  const container = $('chat-messages');
+  while (container.children.length > MAX_CHAT_MSGS) container.removeChild(container.firstChild);
+
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  const t = new Date(time);
+  const ts = t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0');
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'cm-time';
+  timeSpan.textContent = ts;
+  div.appendChild(timeSpan);
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'cm-name';
+  nameSpan.textContent = name;
+  nameSpan.addEventListener('click', () => openDmThread(name));
+  div.appendChild(nameSpan);
+
+  if (sticker) {
+    const stickerEl = document.createElement('span');
+    stickerEl.className = 'chat-sticker';
+    stickerEl.textContent = sticker;
+    div.appendChild(stickerEl);
+  } else {
+    const textSpan = document.createElement('span');
+    textSpan.className = 'cm-text';
+    textSpan.textContent = text;
+    div.appendChild(textSpan);
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function addSystemMsg(text) {
+  const active = chatMode === 'dm-thread' ? $('chat-dm-thread')
+    : chatMode === 'dm-list' ? $('chat-dm-list') : $('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'chat-sys';
+  div.textContent = text;
+  active.appendChild(div);
+  active.scrollTop = active.scrollHeight;
+}
+
+// ─── DM SYSTEM (localStorage only) ──────────────────────────
+function getDmKey(peer) {
+  const sorted = [chatName.toLowerCase(), peer.toLowerCase()].sort();
+  return 'link-dm-' + sorted[0] + '-' + sorted[1];
+}
+
+function getDmConversations() {
+  const convos = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith('link-dm-')) {
+      try {
+        const msgs = JSON.parse(localStorage.getItem(key));
+        if (msgs && msgs.length > 0) {
+          const last = msgs[msgs.length - 1];
+          const parts = key.replace('link-dm-', '').split('-');
+          const myLower = chatName.toLowerCase();
+          const peer = parts.find(p => p !== myLower) || parts[0];
+          const peerName = msgs.reduce((n, m) => m.from !== chatName ? m.from : n, peer);
+          convos[peerName] = { last: last.text, time: last.time, count: msgs.length, key };
+        }
+      } catch(e) {}
+    }
+  }
+  return convos;
+}
+
+function deleteDm(peer) {
+  if (!confirm('Delete conversation with ' + peer + '?')) return;
+  const key = getDmKey(peer);
+  localStorage.removeItem(key);
+  if (chatMode === 'dm-thread' && currentDmPeer === peer) {
+    showDmList();
+  } else if (chatMode === 'dm-list') {
+    showDmList();
+  }
+  addSystemMsg('Conversation with ' + peer + ' deleted.');
+}
+
+function sendDm(peer, text) {
+  const key = getDmKey(peer);
+  let msgs = [];
+  try { msgs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) {}
+  const msg = { from: chatName, text: text.slice(0, 500), time: Date.now() };
+  msgs.push(msg);
+  if (msgs.length > 500) msgs = msgs.slice(-500);
+  localStorage.setItem(key, JSON.stringify(msgs));
+  appendDmMsg(msg);
+}
+
+function loadDmThread(peer) {
+  const container = $('chat-dm-thread');
+  container.innerHTML = '';
+  const key = getDmKey(peer);
+  let msgs = [];
+  try { msgs = JSON.parse(localStorage.getItem(key)) || []; } catch(e) {}
+  msgs.forEach(m => appendDmMsg(m, false));
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendDmMsg(msg, scroll = true) {
+  const container = $('chat-dm-thread');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  const t = new Date(msg.time);
+  const ts = t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0');
+  const isMe = msg.from === chatName;
+
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'cm-time';
+  timeSpan.textContent = ts;
+  div.appendChild(timeSpan);
+
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'cm-name';
+  nameSpan.style.color = isMe ? 'var(--neon1)' : '#00ff66';
+  nameSpan.textContent = msg.from;
+  div.appendChild(nameSpan);
+
+  // Check if message is a sticker
+  const stickerMatch = msg.text && msg.text.match(/^\[\[sticker:(.+)\]\]$/);
+  if (stickerMatch) {
+    const stickerEl = document.createElement('span');
+    stickerEl.className = 'chat-sticker';
+    stickerEl.textContent = stickerMatch[1];
+    div.appendChild(stickerEl);
+  } else {
+    const textSpan = document.createElement('span');
+    textSpan.className = 'cm-text';
+    textSpan.textContent = msg.text;
+    div.appendChild(textSpan);
+  }
+
+  container.appendChild(div);
+  if (scroll) container.scrollTop = container.scrollHeight;
+}
+
+function showPublicChat() {
+  chatMode = 'public';
+  $('chat-messages').style.display = 'flex';
+  $('chat-dm-list').style.display = 'none';
+  $('chat-dm-thread').style.display = 'none';
+  $('dm-back').style.display = 'none';
+  $('chat-input').placeholder = 'Type a message…';
+  currentDmPeer = '';
+}
+
+function showDmList() {
+  if (!chatName) { addSystemMsg('Set a name first'); return; }
+  chatMode = 'dm-list';
+  $('chat-messages').style.display = 'none';
+  $('chat-dm-list').style.display = 'flex';
+  $('chat-dm-thread').style.display = 'none';
+  $('dm-back').style.display = 'none';
+  currentDmPeer = '';
+  $('chat-input').placeholder = 'Enter a name to DM…';
+
+  const container = $('chat-dm-list');
+  container.innerHTML = '';
+  const convos = getDmConversations();
+  const sorted = Object.entries(convos).sort((a, b) => b[1].time - a[1].time);
+  if (sorted.length === 0) {
+    addSystemMsg('No conversations yet. Click a name in public chat to start a DM.');
+    return;
+  }
+  sorted.forEach(([peer, data]) => {
+    const div = document.createElement('div');
+    div.className = 'dm-item';
+    const t = new Date(data.time);
+    const ts = t.getHours().toString().padStart(2,'0') + ':' + t.getMinutes().toString().padStart(2,'0');
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'dm-name';
+    nameEl.textContent = peer;
+    div.appendChild(nameEl);
+
+    const previewEl = document.createElement('span');
+    previewEl.className = 'dm-preview';
+    previewEl.textContent = data.last;
+    div.appendChild(previewEl);
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'dm-time';
+    timeEl.textContent = ts;
+    div.appendChild(timeEl);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'dm-delete';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Delete conversation';
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteDm(peer); });
+    div.appendChild(delBtn);
+
+    div.addEventListener('click', () => openDmThread(peer));
+    container.appendChild(div);
+  });
+}
+
+function openDmThread(peer) {
+  if (!chatName) { addSystemMsg('Set a name first'); return; }
+  if (peer === chatName) return;
+  chatMode = 'dm-thread';
+  currentDmPeer = peer;
+  $('chat-messages').style.display = 'none';
+  $('chat-dm-list').style.display = 'none';
+  $('chat-dm-thread').style.display = 'flex';
+  $('dm-back').style.display = 'block';
+  $('chat-input').placeholder = `DM to ${peer}…`;
+  document.querySelectorAll('.chat-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'dm'));
+  loadDmThread(peer);
+}
+
+// Override send when in DM list mode
+const origSendChat = sendChat;
+function sendChatWrapper() {
+  if (chatMode === 'dm-list') {
+    const name = sanitizeName($('chat-input').value);
+    if (name && chatName) {
+      $('chat-input').value = '';
+      openDmThread(name);
+    }
+    return;
+  }
+  origSendChat();
+}
+
+// ─── EMOJI + STICKER PICKER ──────────────────────────────────
+
+function getEmojiHistory() {
+  try { return JSON.parse(localStorage.getItem('link-emoji-history')) || []; } catch(e) { return []; }
+}
+function addEmojiHistory(emoji) {
+  let hist = getEmojiHistory();
+  hist = hist.filter(e => e !== emoji);
+  hist.unshift(emoji);
+  if (hist.length > 32) hist = hist.slice(0, 32);
+  localStorage.setItem('link-emoji-history', JSON.stringify(hist));
+}
+function getStickerFavs() {
+  try { return JSON.parse(localStorage.getItem('link-sticker-favs')) || []; } catch(e) { return []; }
+}
+function toggleStickerFav(sticker) {
+  let favs = getStickerFavs();
+  if (favs.includes(sticker)) {
+    favs = favs.filter(s => s !== sticker);
+  } else {
+    favs.unshift(sticker);
+    if (favs.length > 50) favs = favs.slice(0, 50);
+  }
+  localStorage.setItem('link-sticker-favs', JSON.stringify(favs));
+  return favs.includes(sticker);
+}
+
+function initEmojiPicker() {
+  const picker = $('emoji-picker');
+  const grid = $('emoji-grid');
+  const tabs = $('emoji-tabs');
+  const search = $('emoji-search');
+  const btn = $('emoji-btn');
+  const emojiArea = $('emoji-area');
+  const stickerArea = $('sticker-area');
+  const stickerGrid = $('sticker-grid');
+  const stickerTabs = $('sticker-tabs');
+  let activeCategory = -1; // -1 = history
+  let activeStickerPack = 0;
+  let pickerMode = 'emoji';
+
+  // ── Mode tabs (Emoji / Stickers) ──
+  document.querySelectorAll('.picker-mode-tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.picker-mode-tab').forEach(tb => tb.classList.remove('active'));
+      t.classList.add('active');
+      pickerMode = t.dataset.mode;
+      if (pickerMode === 'emoji') {
+        emojiArea.style.display = 'flex';
+        stickerArea.style.display = 'none';
+      } else {
+        emojiArea.style.display = 'none';
+        stickerArea.style.display = 'flex';
+        renderStickerPack(activeStickerPack);
+      }
+    });
+  });
+
+  // ── Emoji: History tab ──
+  const histTab = document.createElement('button');
+  histTab.className = 'emoji-tab active';
+  histTab.textContent = '🕐';
+  histTab.title = 'Recent';
+  histTab.addEventListener('click', () => {
+    activeCategory = -1;
+    tabs.querySelectorAll('.emoji-tab').forEach(t => t.classList.remove('active'));
+    histTab.classList.add('active');
+    search.value = '';
+    renderEmojiList(getEmojiHistory());
+  });
+  tabs.appendChild(histTab);
+
+  // ── Emoji: Category tabs ──
+  EMOJI_CATS.forEach((cat, i) => {
+    const tab = document.createElement('button');
+    tab.className = 'emoji-tab';
+    tab.textContent = cat.icon;
+    tab.title = cat.name;
+    tab.addEventListener('click', () => {
+      activeCategory = i;
+      tabs.querySelectorAll('.emoji-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      search.value = '';
+      renderEmojiList(cat.emojis);
+    });
+    tabs.appendChild(tab);
+  });
+
+  function insertEmoji(emoji) {
+    addEmojiHistory(emoji);
+    const input = $('chat-input');
+    const pos = input.selectionStart || input.value.length;
+    input.value = input.value.slice(0, pos) + emoji + input.value.slice(pos);
+    input.focus();
+    input.setSelectionRange(pos + emoji.length, pos + emoji.length);
+  }
+
+  function renderEmojiList(emojis) {
+    grid.innerHTML = '';
+    if (!emojis || emojis.length === 0) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--text);opacity:.5;font-size:10px;padding:20px 0';
+      msg.textContent = activeCategory === -1 ? 'No recently used emoji yet' : 'No emoji found';
+      grid.appendChild(msg);
+      return;
+    }
+    emojis.forEach(emoji => {
+      const b = document.createElement('button');
+      b.className = 'emoji-item';
+      b.textContent = emoji;
+      b.addEventListener('click', () => insertEmoji(emoji));
+      grid.appendChild(b);
+    });
+  }
+
+  renderEmojiList(getEmojiHistory());
+
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    if (!q) {
+      if (activeCategory === -1) renderEmojiList(getEmojiHistory());
+      else renderEmojiList(EMOJI_CATS[activeCategory].emojis);
+      return;
+    }
+    let all = [];
+    EMOJI_CATS.forEach(c => all = all.concat(c.emojis));
+    renderEmojiList(all);
+  });
+
+  // ── Sticker tabs + grid ──
+  function buildStickerTabs() {
+    stickerTabs.innerHTML = '';
+    STICKER_PACKS[0].stickers = getStickerFavs();
+    STICKER_PACKS.forEach((pack, i) => {
+      const tab = document.createElement('button');
+      tab.className = 'sticker-tab' + (i === activeStickerPack ? ' active' : '');
+      tab.textContent = pack.icon;
+      tab.title = pack.name;
+      tab.addEventListener('click', () => {
+        activeStickerPack = i;
+        stickerTabs.querySelectorAll('.sticker-tab').forEach((t, j) => t.classList.toggle('active', j === i));
+        renderStickerPack(i);
+      });
+      stickerTabs.appendChild(tab);
+    });
+  }
+
+  function renderStickerPack(idx) {
+    stickerGrid.innerHTML = '';
+    const pack = STICKER_PACKS[idx];
+    if (!pack.stickers || pack.stickers.length === 0) {
+      const msg = document.createElement('div');
+      msg.style.cssText = 'grid-column:1/-1;text-align:center;color:var(--text);opacity:.5;font-size:10px;padding:20px 0';
+      msg.textContent = idx === 0 ? 'No favorites yet — hover a sticker and tap ⭐' : 'No stickers';
+      stickerGrid.appendChild(msg);
+      return;
+    }
+    pack.stickers.forEach(sticker => {
+      const item = document.createElement('button');
+      item.className = 'sticker-item';
+      item.textContent = sticker;
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('sticker-fav')) return;
+        sendSticker(sticker);
+      });
+      // Favorite star
+      const fav = document.createElement('span');
+      fav.className = 'sticker-fav' + (getStickerFavs().includes(sticker) ? ' is-fav' : '');
+      fav.textContent = '⭐';
+      fav.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isFav = toggleStickerFav(sticker);
+        fav.classList.toggle('is-fav', isFav);
+        if (activeStickerPack === 0) {
+          STICKER_PACKS[0].stickers = getStickerFavs();
+          renderStickerPack(0);
+        }
+      });
+      item.appendChild(fav);
+      stickerGrid.appendChild(item);
+    });
+  }
+
+  buildStickerTabs();
+
+  // Toggle picker
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const opening = !picker.classList.contains('open');
+    picker.classList.toggle('open');
+    if (opening) {
+      if (activeCategory === -1 && pickerMode === 'emoji') renderEmojiList(getEmojiHistory());
+      if (pickerMode === 'sticker') { buildStickerTabs(); renderStickerPack(activeStickerPack); }
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!picker.contains(e.target) && e.target !== btn) {
+      picker.classList.remove('open');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ARCHIVE TV - Random public domain video playback
+// ═══════════════════════════════════════════════════════════════
+
+let tvRAF = null;
+let tvPaused = false;
+let lastTVIdx = -1;
+let tvHistory = [];
+let tvHistoryPos = -1;
+const tvVideo = $('tv-video');
+const tvInfo = $('tv-info');
+let tvInfoTimer = null;
+
+function pickRandomVideo() {
+  let idx;
+  do { idx = Math.floor(Math.random() * ARCHIVE_VIDEOS.length); }
+  while (idx === lastTVIdx && ARCHIVE_VIDEOS.length > 1);
+  lastTVIdx = idx;
+  return idx;
+}
+
+let tvRetries = 0;
+
+function playTVVideo(idx) {
+  lastTVIdx = idx;
+  const vid = ARCHIVE_VIDEOS[idx];
+  tvInfo.textContent = `📺 ${vid.title}`;
+  tvInfo.classList.remove('hidden');
+  clearTimeout(tvInfoTimer);
+  tvInfoTimer = setTimeout(() => tvInfo.classList.add('hidden'), 4000);
+  tvVideo.src = vid.url;
+  tvVideo.muted = true;
+  tvVideo.volume = 0.7;
+  tvVideo.oncanplay = () => {
+    tvVideo.oncanplay = null;
+    tvRetries = 0;
+    tvVideo.play().catch(() => {});
+  };
+  tvVideo.onended = () => {
+    tvRetries = 0;
+    if (!tvPaused) tvNextChannel();
+  };
+  tvVideo.onerror = () => {
+    tvRetries++;
+    if (tvRetries > ARCHIVE_VIDEOS.length) { tvRetries = 0; return; }
+    if (!tvPaused) tvNextChannel();
+  };
+}
+
+function startArchiveTV() {
+  if (tvPaused) return;
+  tvRetries = 0;
+  const idx = pickRandomVideo();
+  tvHistory.push(idx);
+  tvHistoryPos = tvHistory.length - 1;
+  playTVVideo(idx);
+}
+
+function tvNextChannel() {
+  if (tvHistoryPos < tvHistory.length - 1) {
+    tvHistoryPos++;
+    playTVVideo(tvHistory[tvHistoryPos]);
+  } else {
+    const idx = pickRandomVideo();
+    tvHistory.push(idx);
+    tvHistoryPos = tvHistory.length - 1;
+    playTVVideo(idx);
+  }
+}
+
+function tvPrevChannel() {
+  if (tvHistoryPos > 0) {
+    tvHistoryPos--;
+    playTVVideo(tvHistory[tvHistoryPos]);
+  }
+}
+
+function stopArchiveTV() {
+  tvVideo.pause();
+  tvVideo.removeAttribute('src');
+  tvVideo.load();
+  tvVideo.onended = null;
+  tvVideo.onerror = null;
+}
+
+function toggleTVPause() {
+  tvPaused = !tvPaused;
+  if (tvPaused) {
+    tvVideo.pause();
+    if (isPlaying) pauseStation();
+  } else {
+    if (!isPlaying) playStation();
+    tvVideo.play().catch(() => {});
+  }
+}
+
+function downloadTVVideo() {
+  if (lastTVIdx < 0 || lastTVIdx >= ARCHIVE_VIDEOS.length) return;
+  const vid = ARCHIVE_VIDEOS[lastTVIdx];
+  const a = document.createElement('a');
+  a.href = vid.url;
+  a.download = vid.title.replace(/[^a-zA-Z0-9 ()-]/g, '') + '.mp4';
+  a.target = '_blank';
+  a.click();
+}
+
+// ─── TV GESTURE CONTROLS ────────────────────────────────────
+function initTVGestures() {
+  let clickTimer = null;
+  let longPressTimer = null;
+  let touchStartTime = 0;
+
+  tvVideo.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (clickTimer) {
+      clearTimeout(clickTimer);
+      clickTimer = null;
+      // Double click → play/pause
+      toggleTVPause();
+      return;
+    }
+    clickTimer = setTimeout(() => {
+      clickTimer = null;
+      // Single click → fullscreen
+      const wrap = $('tv-wrap');
+      if (document.fullscreenElement) document.exitFullscreen();
+      else wrap.requestFullscreen().catch(() => {});
+    }, 300);
+  });
+
+  tvVideo.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // Right click → toggle mute
+    tvVideo.muted = !tvVideo.muted;
+    tvInfo.textContent = tvVideo.muted ? '🔇 Muted' : '🔊 Unmuted';
+    tvInfo.classList.remove('hidden');
+    clearTimeout(tvInfoTimer);
+    tvInfoTimer = setTimeout(() => tvInfo.classList.add('hidden'), 2000);
+  });
+
+  // Long press for touch → mute/unmute
+  tvVideo.addEventListener('touchstart', (e) => {
+    touchStartTime = Date.now();
+    longPressTimer = setTimeout(() => {
+      tvVideo.muted = !tvVideo.muted;
+      tvInfo.textContent = tvVideo.muted ? '🔇 Muted' : '🔊 Unmuted';
+      tvInfo.classList.remove('hidden');
+      clearTimeout(tvInfoTimer);
+      tvInfoTimer = setTimeout(() => tvInfo.classList.add('hidden'), 2000);
+      longPressTimer = null;
+    }, 600);
+  }, { passive: true });
+
+  tvVideo.addEventListener('touchend', () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LINK TITLE FX ROTATION
+// ═══════════════════════════════════════════════════════════════
+
+const FX_PRESETS = [
+  { template: 'tunnel', colorMode: 'frequency', mirror: 3, bloom: 1.5, saturation: 3, speed: 0.1, rotation: 0 },
+  { template: 'galaxy', colorMode: 'cycle', mirror: 0, bloom: 2.0, saturation: 2, speed: 0.3, rotation: 1.5 },
+  { template: 'plasma', colorMode: 'reactive', mirror: 1, bloom: 2.5, saturation: 3, speed: 0.5, rotation: 0 },
+  { template: 'radial', colorMode: 'frequency', mirror: 3, bloom: 2.0, saturation: 2.5, speed: 0.2, rotation: 0.8 },
+  { template: 'outrun', colorMode: 'static', mirror: 0, bloom: 1.8, saturation: 2, speed: 0.15, rotation: 0 },
+  { template: 'terrain', colorMode: 'frequency', mirror: 2, bloom: 1.2, saturation: 2, speed: 0.1, rotation: 0 },
+  { template: 'wave', colorMode: 'cycle', mirror: 1, bloom: 1.5, saturation: 3, speed: 0.4, rotation: 0 },
+  { template: 'bars', colorMode: 'frequency', mirror: 3, bloom: 2.0, saturation: 2.5, speed: 0.1, rotation: 0 },
+];
+let fxPresetIdx = 0;
+
+function cycleFXPreset() {
+  fxPresetIdx = (fxPresetIdx + 1) % FX_PRESETS.length;
+  const preset = FX_PRESETS[fxPresetIdx];
+  Object.assign(settings, preset);
+  settingsToUI();
+  applySettings();
+  autoSave();
+  // Flash the orb on preset apply
+  const brandEl = $('orb-wrap');
+  brandEl.classList.remove('brand-flash');
+  void brandEl.offsetWidth;
+  brandEl.classList.add('brand-flash');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ORB — animated glowing energy sphere
+// ═══════════════════════════════════════════════════════════════
+function initOrb() {
+  const c = $('orb-canvas');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height, cx = W/2, cy = H/2, R = W/2 - 2;
+
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    const s = t * 0.001;
+
+    // Color cycling: electric blue → neon green → neon red → back
+    const phase1 = Math.sin(s * 0.4) * 0.5 + 0.5;       // 0-1
+    const phase2 = Math.sin(s * 0.4 + 2.094) * 0.5 + 0.5; // offset by 2π/3
+    const phase3 = Math.sin(s * 0.4 + 4.189) * 0.5 + 0.5; // offset by 4π/3
+    const r = Math.round(phase3 * 255);
+    const g = Math.round(phase2 * 255);
+    const b = Math.round(phase1 * 255);
+
+    // Outer glow layers
+    for (let i = 3; i >= 0; i--) {
+      const glowR = R + i * 4;
+      const pulse = 0.15 + Math.sin(s * 2 + i) * 0.08;
+      const grad = ctx.createRadialGradient(cx, cy, R * 0.3, cx, cy, glowR);
+      grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+      grad.addColorStop(0.6, `rgba(${r},${g},${b},${pulse * 0.5})`);
+      grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Core sphere gradient
+    const coreGrad = ctx.createRadialGradient(cx - R*0.15, cy - R*0.15, R*0.05, cx, cy, R);
+    coreGrad.addColorStop(0, `rgba(255,255,255,0.95)`);
+    coreGrad.addColorStop(0.15, `rgba(${Math.min(255,r+120)},${Math.min(255,g+120)},${Math.min(255,b+120)},0.9)`);
+    coreGrad.addColorStop(0.5, `rgba(${r},${g},${b},0.85)`);
+    coreGrad.addColorStop(0.85, `rgba(${r>>1},${g>>1},${b>>1},0.7)`);
+    coreGrad.addColorStop(1, `rgba(${r>>2},${g>>2},${b>>2},0.3)`);
+    ctx.fillStyle = coreGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Energy wisps rotating around
+    ctx.save();
+    ctx.translate(cx, cy);
+    for (let i = 0; i < 3; i++) {
+      const angle = s * (1.5 + i * 0.3) + i * 2.094;
+      const wR = R * (0.6 + Math.sin(s * 3 + i) * 0.15);
+      const wx = Math.cos(angle) * wR;
+      const wy = Math.sin(angle) * wR;
+      const wGrad = ctx.createRadialGradient(wx, wy, 0, wx, wy, R * 0.35);
+      const wr = i === 0 ? 80 : i === 1 ? r : 255;
+      const wg = i === 0 ? 200 : i === 1 ? 255 : g;
+      const wb = i === 0 ? 255 : i === 1 ? 100 : b;
+      wGrad.addColorStop(0, `rgba(${wr},${wg},${wb},0.6)`);
+      wGrad.addColorStop(1, `rgba(${wr},${wg},${wb},0)`);
+      ctx.fillStyle = wGrad;
+      ctx.beginPath();
+      ctx.arc(wx, wy, R * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Bright specular highlight
+    const specGrad = ctx.createRadialGradient(cx - R*0.25, cy - R*0.3, 0, cx - R*0.25, cy - R*0.3, R*0.4);
+    specGrad.addColorStop(0, 'rgba(255,255,255,0.6)');
+    specGrad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = specGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+
+function init() {
+  autoLoad();
+  initUI();
+  if (CHAT_ENABLED) initChat();
+  settingsToUI();
+  initGL();
+  applySettings();
+  updatePlaylistMode();
+  initOrb();
+  fftData = fftData || new Uint8Array(BIN_COUNT);
+  waveData = waveData || new Uint8Array(BIN_COUNT);
+  render();
+  // Auto-resume playback if was playing before reload
+  if (localStorage.getItem('rc-last-playing') === '1') {
+    // Delay to allow user gesture policy; click anywhere resumes
+    const resumePlay = () => {
+      if (!isPlaying) playStation();
+      document.removeEventListener('click', resumePlay);
+      document.removeEventListener('keydown', resumePlay);
+    };
+    // Try immediately (works if user interacted before reload)
+    try { playStation(); } catch(e) {}
+    if (!isPlaying) {
+      document.addEventListener('click', resumePlay, { once: true });
+      document.addEventListener('keydown', resumePlay, { once: true });
+    }
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>

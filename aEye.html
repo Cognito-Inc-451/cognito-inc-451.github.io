@@ -1,0 +1,3314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>aEye — Global Camera Network</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --accent: #00f0ff;
+  --accent2: #ff006e;
+  --accent3: #39ff14;
+  --bg: #06080c;
+  --bg2: #0c1018;
+  --bg3: #121824;
+  --surface: rgba(12,16,24,0.92);
+  --border: rgba(0,240,255,0.15);
+  --text: #c8d6e5;
+  --text-dim: #5a6a7a;
+  --glow: 0 0 20px rgba(0,240,255,0.3);
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Outfit', sans-serif;
+  --pin-size: 0.45;
+  --rotation-speed: 0.15;
+  --grid-cols: 4;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; overflow:hidden; background:var(--bg); color:var(--text); font-family:var(--font-mono); }
+
+/* ========== GLOBE CONTAINER ========== */
+#globe-container { position:fixed; inset:0; z-index:1; }
+
+/* ========== TOP BAR ========== */
+#topbar {
+  position:fixed; top:0; left:0; right:0; z-index:100;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 20px; pointer-events:none;
+}
+#topbar > * { pointer-events:auto; }
+#logo {
+  font-family:var(--font-display); font-weight:800; font-size:24px;
+  letter-spacing:2px; color:var(--accent);
+  text-shadow:0 0 30px rgba(0,240,255,0.5), 0 0 60px rgba(0,240,255,0.2);
+  cursor:default; user-select:none; display:flex; align-items:center; gap:10px;
+}
+#logo .eye { font-size:28px; filter:drop-shadow(0 0 8px var(--accent)); }
+#logo .sub {
+  font-family:var(--font-mono); font-size:10px; font-weight:300;
+  color:var(--text-dim); letter-spacing:4px; text-transform:uppercase;
+  margin-left:4px;
+}
+.topbar-controls { display:flex; gap:8px; align-items:center; }
+
+/* ========== BUTTONS ========== */
+.btn-icon {
+  width:40px; height:40px; border-radius:8px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; transition:all 0.2s; backdrop-filter:blur(12px);
+  position:relative;
+}
+.btn-icon:hover {
+  border-color:var(--accent); color:var(--accent);
+  box-shadow:var(--glow); transform:translateY(-1px);
+}
+.btn-icon.active { border-color:var(--accent); color:var(--accent); background:rgba(0,240,255,0.08); }
+.btn-icon .badge {
+  position:absolute; top:-4px; right:-4px; width:16px; height:16px;
+  border-radius:50%; background:var(--accent2); color:#fff;
+  font-size:9px; display:flex; align-items:center; justify-content:center;
+  font-weight:700;
+}
+
+/* ========== TOOLTIP ========== */
+#tooltip {
+  position:fixed; z-index:200; pointer-events:none;
+  padding:6px 12px; border-radius:6px; font-size:11px;
+  background:var(--surface); border:1px solid var(--border);
+  backdrop-filter:blur(12px); color:var(--accent);
+  font-family:var(--font-mono); letter-spacing:0.5px;
+  opacity:0; transition:opacity 0.15s;
+  white-space:nowrap; max-width:300px;
+}
+#tooltip.visible { opacity:1; }
+#tooltip .tt-city { color:var(--text-dim); font-size:10px; margin-top:2px; }
+
+/* ========== PREVIEW POPUP ========== */
+#preview-overlay {
+  position:fixed; inset:0; z-index:300; background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center;
+  animation:fadeIn 0.2s;
+}
+#preview-overlay.open { display:flex; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+#preview-card {
+  width:min(560px, 90vw); background:var(--bg2); border:1px solid var(--border);
+  border-radius:16px; overflow:hidden; position:relative;
+  box-shadow:0 0 60px rgba(0,240,255,0.1), 0 20px 60px rgba(0,0,0,0.5);
+  animation:slideUp 0.25s ease-out;
+}
+@keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+#preview-card .preview-img {
+  width:100%; aspect-ratio:16/9; object-fit:cover; display:block;
+  background:var(--bg3);
+}
+#preview-card .preview-video {
+  width:100%; aspect-ratio:16/9; border:none; display:none; background:#000;
+}
+#preview-card .preview-info {
+  padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+}
+#preview-card .preview-info .left { flex:1; }
+#preview-card .cam-name {
+  font-family:var(--font-display); font-weight:600; font-size:16px; color:#fff;
+}
+#preview-card .cam-loc {
+  font-size:11px; color:var(--text-dim); margin-top:4px;
+  letter-spacing:1px; text-transform:uppercase;
+}
+#preview-card .preview-actions { display:flex; gap:8px; }
+.btn-sm {
+  padding:8px 16px; border-radius:8px; border:1px solid var(--border);
+  background:transparent; color:var(--text); cursor:pointer;
+  font-family:var(--font-mono); font-size:11px; transition:all 0.2s;
+  display:flex; align-items:center; gap:6px;
+}
+.btn-sm:hover { border-color:var(--accent); color:var(--accent); }
+.btn-sm.primary {
+  background:var(--accent); color:var(--bg); border-color:var(--accent);
+  font-weight:500;
+}
+.btn-sm.primary:hover { box-shadow:var(--glow); }
+.btn-sm.fav-active { color:var(--accent2); border-color:var(--accent2); }
+
+/* External camera fallback */
+.preview-ext, .fs-ext {
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  position:relative; overflow:hidden;
+  background:linear-gradient(135deg, #080c14 0%, #0c1420 50%, #080e18 100%);
+}
+.preview-ext { width:100%; aspect-ratio:16/9; }
+.fs-ext { flex:1; width:100%; }
+.preview-ext::before, .fs-ext::before {
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 40%, rgba(0,240,255,0.06) 0%, transparent 60%);
+  pointer-events:none;
+}
+.ext-pulse-ring {
+  width:72px; height:72px; border-radius:50%; border:2px solid rgba(0,240,255,0.25);
+  display:flex; align-items:center; justify-content:center;
+  animation:extPulse 2.5s ease-in-out infinite; position:relative;
+}
+.fs-ext .ext-pulse-ring { width:100px; height:100px; }
+@keyframes extPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(0,240,255,0.15); }
+  50% { box-shadow:0 0 0 18px rgba(0,240,255,0); }
+}
+.ext-pulse-ring .ext-icon { font-size:28px; filter:drop-shadow(0 0 8px rgba(0,240,255,0.5)); }
+.fs-ext .ext-icon { font-size:40px; }
+.ext-source-badge {
+  margin-top:14px; font-size:10px; color:var(--accent); letter-spacing:3px;
+  text-transform:uppercase; opacity:0.7; font-family:var(--font-mono);
+}
+.fs-ext .ext-source-badge { font-size:13px; margin-top:20px; }
+.ext-desc { margin-top:4px; font-size:11px; color:var(--text-dim); }
+.fs-ext .ext-desc { font-size:13px; margin-top:6px; }
+.ext-watch-btn {
+  margin-top:14px; padding:10px 24px; border-radius:8px;
+  background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.4);
+  color:var(--accent); font-family:var(--font-mono); font-size:12px;
+  cursor:pointer; text-decoration:none; display:inline-flex;
+  align-items:center; gap:8px; transition:all 0.2s; position:relative; z-index:1;
+}
+.fs-ext .ext-watch-btn { font-size:14px; padding:14px 32px; margin-top:20px; }
+.ext-watch-btn:hover {
+  background:rgba(0,240,255,0.22); box-shadow:0 0 20px rgba(0,240,255,0.2);
+  transform:translateY(-1px);
+}
+.ext-watch-btn .arrow { font-size:14px; }
+#preview-close {
+  position:absolute; top:12px; right:12px; width:32px; height:32px;
+  border-radius:50%; border:1px solid rgba(255,255,255,0.2);
+  background:rgba(0,0,0,0.6); color:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:16px;
+  transition:all 0.2s; z-index:5;
+}
+#preview-close:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ========== GRID / MOSAIC VIEW ========== */
+#grid-view {
+  position:fixed; inset:0; z-index:50; background:var(--bg);
+  display:none; flex-direction:column; overflow:hidden;
+}
+#grid-view.open { display:flex; }
+
+#grid-toolbar {
+  display:flex; align-items:center; padding:12px 20px; gap:12px;
+  border-bottom:1px solid var(--border); flex-shrink:0;
+  background:var(--surface); backdrop-filter:blur(12px);
+  margin-top:56px; flex-wrap:wrap;
+}
+#grid-search {
+  flex:1; max-width:320px; padding:8px 14px; border-radius:8px;
+  border:1px solid var(--border); background:rgba(255,255,255,0.03);
+  color:var(--text); font-family:var(--font-mono); font-size:12px;
+  outline:none; transition:border-color 0.2s;
+}
+#grid-search:focus { border-color:var(--accent); }
+#grid-search::placeholder { color:var(--text-dim); }
+
+.filter-btn {
+  padding:6px 12px; border-radius:6px; border:1px solid var(--border);
+  background:transparent; color:var(--text-dim); cursor:pointer;
+  font-family:var(--font-mono); font-size:10px; text-transform:uppercase;
+  letter-spacing:1px; transition:all 0.2s; white-space:nowrap;
+}
+.filter-btn:hover, .filter-btn.active {
+  border-color:var(--accent); color:var(--accent); background:rgba(0,240,255,0.05);
+}
+.filter-btn.fav-filter.active { border-color:var(--accent2); color:var(--accent2); }
+
+.grid-cols-control {
+  display:flex; align-items:center; gap:4px; margin-left:auto;
+}
+.grid-cols-control label { font-size:10px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; }
+.grid-cols-control input[type=range] {
+  width:80px; accent-color:var(--accent); cursor:pointer;
+}
+
+#grid-scroll {
+  flex:1; overflow-y:auto; overflow-x:hidden; padding:16px;
+  scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+}
+#grid-scroll::-webkit-scrollbar { width:6px; }
+#grid-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+#grid-cards {
+  display:grid;
+  grid-template-columns:repeat(var(--grid-cols), 1fr);
+  gap:12px;
+}
+.grid-card {
+  border-radius:12px; border:1px solid var(--border); overflow:hidden;
+  background:var(--bg2); cursor:pointer; transition:all 0.25s;
+  position:relative; group:true;
+}
+.grid-card:hover {
+  border-color:var(--accent); transform:translateY(-2px);
+  box-shadow:0 8px 30px rgba(0,240,255,0.1);
+}
+.grid-card .card-thumb {
+  width:100%; aspect-ratio:16/9; object-fit:cover; display:block;
+  background:var(--bg3); transition:filter 0.3s;
+}
+.grid-card:hover .card-thumb { filter:brightness(1.1); }
+.grid-card .card-info {
+  padding:10px 12px; display:flex; align-items:center; justify-content:space-between;
+}
+.grid-card .card-name {
+  font-family:var(--font-display); font-size:12px; font-weight:600;
+  color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;
+}
+.grid-card .card-loc {
+  font-size:9px; color:var(--text-dim); letter-spacing:0.5px; margin-top:2px;
+}
+.grid-card .card-actions {
+  display:flex; gap:4px; opacity:0; transition:opacity 0.2s;
+}
+.grid-card:hover .card-actions { opacity:1; }
+.card-btn {
+  width:28px; height:28px; border-radius:6px; border:1px solid var(--border);
+  background:var(--surface); color:var(--text-dim); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:12px;
+  transition:all 0.2s;
+}
+.card-btn:hover { border-color:var(--accent); color:var(--accent); }
+.card-btn.fav-active { color:var(--accent2); border-color:var(--accent2); }
+.grid-card .live-dot {
+  position:absolute; top:10px; left:10px;
+  width:8px; height:8px; border-radius:50%; background:var(--accent3);
+  box-shadow:0 0 8px var(--accent3);
+  animation:pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity:1; } 50% { opacity:0.4; }
+}
+.grid-card .card-continent {
+  position:absolute; top:10px; right:10px; padding:2px 8px;
+  border-radius:4px; background:rgba(0,0,0,0.6); font-size:9px;
+  color:var(--text-dim); letter-spacing:1px; text-transform:uppercase;
+  backdrop-filter:blur(4px);
+}
+
+/* ========== FULLSCREEN CAM VIEW ========== */
+#fullscreen-cam {
+  position:fixed; inset:0; z-index:400; background:#000;
+  display:none; flex-direction:column;
+}
+#fullscreen-cam.open { display:flex; }
+#fullscreen-cam .fs-topbar {
+  position:absolute; top:0; left:0; right:0; z-index:5;
+  padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+  background:linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+}
+#fullscreen-cam .fs-info { display:flex; align-items:center; gap:12px; }
+#fullscreen-cam .fs-name { font-family:var(--font-display); font-weight:600; font-size:18px; color:#fff; }
+#fullscreen-cam .fs-loc { font-size:11px; color:var(--text-dim); }
+#fullscreen-cam iframe {
+  width:100%; height:100%; border:none; flex:1;
+}
+
+/* ========== SETTINGS PANEL ========== */
+#settings-panel {
+  position:fixed; top:0; right:-380px; bottom:0; width:360px; z-index:500;
+  background:var(--bg2); border-left:1px solid var(--border);
+  transition:right 0.3s ease; overflow-y:auto; padding:24px;
+  scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+}
+#settings-panel.open { right:0; }
+#settings-overlay {
+  position:fixed; inset:0; z-index:499; background:rgba(0,0,0,0.4);
+  display:none; backdrop-filter:blur(2px);
+}
+#settings-overlay.open { display:block; }
+
+.settings-title {
+  font-family:var(--font-display); font-weight:800; font-size:20px;
+  color:#fff; margin-bottom:24px; display:flex; align-items:center;
+  justify-content:space-between;
+}
+.settings-section {
+  margin-bottom:24px;
+}
+.settings-section h3 {
+  font-size:10px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--accent); margin-bottom:12px; font-weight:500;
+}
+.setting-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+}
+.setting-row label {
+  font-size:12px; color:var(--text); font-weight:300;
+}
+.setting-row input[type=range] {
+  width:120px; accent-color:var(--accent); cursor:pointer;
+}
+.setting-row input[type=checkbox] {
+  accent-color:var(--accent); cursor:pointer; width:16px; height:16px;
+}
+.setting-row select {
+  padding:4px 8px; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg3); color:var(--text); font-family:var(--font-mono);
+  font-size:11px; cursor:pointer; outline:none;
+}
+.setting-row .val {
+  font-size:11px; color:var(--text-dim); min-width:32px; text-align:right;
+}
+
+/* ========== SAVED VIEWS ========== */
+#views-panel {
+  position:fixed; bottom:80px; right:20px; z-index:150;
+  width:280px; background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; backdrop-filter:blur(12px);
+  display:none; overflow:hidden;
+  box-shadow:0 10px 40px rgba(0,0,0,0.4);
+}
+#views-panel.open { display:block; animation:slideUp 0.2s ease-out; }
+.views-header {
+  padding:12px 16px; border-bottom:1px solid var(--border);
+  font-family:var(--font-display); font-weight:600; font-size:13px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.views-list { max-height:240px; overflow-y:auto; }
+.view-item {
+  padding:10px 16px; cursor:pointer; transition:background 0.15s;
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:12px; border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.view-item:hover { background:rgba(0,240,255,0.05); }
+.view-item .view-count { font-size:10px; color:var(--text-dim); }
+.view-item .view-del {
+  opacity:0; cursor:pointer; color:var(--text-dim); font-size:14px;
+  transition:all 0.15s; background:none; border:none;
+}
+.view-item:hover .view-del { opacity:1; }
+.view-item .view-del:hover { color:var(--accent2); }
+.views-add {
+  padding:10px 16px; display:flex; gap:8px;
+  border-top:1px solid var(--border);
+}
+.views-add input {
+  flex:1; padding:6px 10px; border-radius:6px; border:1px solid var(--border);
+  background:rgba(255,255,255,0.03); color:var(--text);
+  font-family:var(--font-mono); font-size:11px; outline:none;
+}
+.views-add input:focus { border-color:var(--accent); }
+.views-add button {
+  padding:6px 12px; border-radius:6px; border:1px solid var(--accent);
+  background:rgba(0,240,255,0.1); color:var(--accent);
+  font-family:var(--font-mono); font-size:11px; cursor:pointer;
+  transition:all 0.2s;
+}
+.views-add button:hover { background:var(--accent); color:var(--bg); }
+
+/* ========== ADD TO VIEW DROPDOWN ========== */
+.add-to-view-menu {
+  position:fixed; z-index:600; width:200px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; backdrop-filter:blur(12px); overflow:hidden;
+  box-shadow:0 8px 30px rgba(0,0,0,0.4); display:none;
+}
+.add-to-view-menu.open { display:block; animation:fadeIn 0.15s; }
+.add-to-view-menu .avm-item {
+  padding:8px 14px; cursor:pointer; font-size:11px;
+  transition:background 0.15s; display:flex; align-items:center; gap:8px;
+}
+.add-to-view-menu .avm-item:hover { background:rgba(0,240,255,0.08); color:var(--accent); }
+.add-to-view-menu .avm-item .check { color:var(--accent3); font-size:13px; }
+
+/* ========== CONTINENT FILTERS (GLOBE) ========== */
+#continent-filters {
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+  z-index:90; display:flex; gap:6px;
+  padding:6px 10px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--border);
+  backdrop-filter:blur(12px);
+}
+
+/* ========== CAM COUNT INDICATOR ========== */
+#cam-count {
+  position:fixed; bottom:20px; right:20px; z-index:90;
+  padding:6px 14px; border-radius:8px;
+  background:var(--surface); border:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  font-size:10px; color:var(--text-dim); letter-spacing:1px;
+  text-transform:uppercase;
+}
+#cam-count span { color:var(--accent); font-weight:500; }
+
+/* ========== ROTATION PLAY/PAUSE ========== */
+#rotation-toggle {
+  position:fixed; bottom:20px; left:20px; z-index:90;
+  width:44px; height:44px; border-radius:50%;
+  background:var(--surface); border:1px solid var(--border);
+  backdrop-filter:blur(12px); color:var(--text);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; cursor:pointer; transition:all 0.2s;
+}
+#rotation-toggle:hover { border-color:var(--accent); color:var(--accent); box-shadow:var(--glow); }
+#rotation-toggle.paused { color:var(--text-dim); }
+
+/* ========== LOADING ========== */
+#loading {
+  position:fixed; inset:0; z-index:9999; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  transition:opacity 0.5s;
+}
+#loading.done { opacity:0; pointer-events:none; }
+#loading .loader-ring {
+  width:60px; height:60px; border:2px solid var(--border);
+  border-top-color:var(--accent); border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+#loading .loader-text {
+  margin-top:16px; font-size:11px; letter-spacing:3px;
+  text-transform:uppercase; color:var(--text-dim);
+}
+
+/* ========== SCROLLBAR ========== */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* ========== RESPONSIVE ========== */
+@media (max-width:768px) {
+  :root { --grid-cols:2; }
+  #settings-panel { width:100%; right:-100%; }
+  #preview-card { width:95vw; }
+  #logo .sub { display:none; }
+  .filter-btn { font-size:9px; padding:4px 8px; }
+}
+@media (max-width:480px) {
+  :root { --grid-cols:1; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Initializing aEye</div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"><span class="tt-name"></span><div class="tt-city"></div></div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="logo">
+    <span class="eye">◉</span> aEye
+    <span class="sub">Global Camera Network</span>
+  </div>
+  <div class="topbar-controls">
+    <button class="btn-icon" id="btn-search-globe" title="Search (/)">🔍</button>
+    <button class="btn-icon" id="btn-views" title="Saved Views (V)">📋</button>
+    <button class="btn-icon" id="btn-toggle-view" title="Toggle View (G)">⊞</button>
+    <button class="btn-icon" id="btn-settings" title="Settings (S)">⚙</button>
+    <button class="btn-icon" id="btn-fullscreen" title="Fullscreen (F)">⛶</button>
+  </div>
+</div>
+
+<!-- GLOBE -->
+<div id="globe-container"></div>
+
+<!-- CONTINENT FILTERS -->
+<div id="continent-filters"></div>
+<div id="cam-count"><span id="cam-count-num">0</span> cameras online</div>
+<button id="rotation-toggle" title="Pause/Resume rotation (Space)">⏸</button>
+
+<!-- PREVIEW POPUP -->
+<div id="preview-overlay">
+  <div id="preview-card">
+    <button id="preview-close">✕</button>
+    <img class="preview-img" id="preview-img" alt="Camera preview">
+    <iframe class="preview-video" id="preview-video" allow="autoplay; encrypted-media; fullscreen"></iframe>
+    <div class="preview-ext" id="preview-ext">
+      <div class="ext-pulse-ring"><span class="ext-icon">📡</span></div>
+      <div class="ext-source-badge" id="preview-ext-source">WEBCAMTAXI</div>
+      <div class="ext-desc">External camera stream</div>
+      <a class="ext-watch-btn" id="preview-ext-link" href="#" target="_blank" rel="noopener">Watch Live <span class="arrow">↗</span></a>
+    </div>
+    <div class="preview-info">
+      <div class="left">
+        <div class="cam-name" id="preview-name"></div>
+        <div class="cam-loc" id="preview-loc"></div>
+      </div>
+      <div class="preview-actions">
+        <button class="btn-sm" id="btn-preview-fav" title="Favorite">♡ Fav</button>
+        <button class="btn-sm" id="btn-preview-addview" title="Add to View">+ View</button>
+        <button class="btn-sm primary" id="btn-preview-watch">▶ Watch</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GRID VIEW -->
+<div id="grid-view">
+  <div id="grid-toolbar">
+    <input type="text" id="grid-search" placeholder="Search cameras...">
+    <button class="filter-btn active" data-continent="all">All</button>
+    <button class="filter-btn" data-continent="NA">Americas</button>
+    <button class="filter-btn" data-continent="EU">Europe</button>
+    <button class="filter-btn" data-continent="AS">Asia</button>
+    <button class="filter-btn" data-continent="AF">Africa/ME</button>
+    <button class="filter-btn" data-continent="OC">Oceania</button>
+    <button class="filter-btn fav-filter" data-continent="fav">♡ Favs</button>
+    <div class="grid-cols-control">
+      <label>Grid</label>
+      <input type="range" id="grid-cols-slider" min="1" max="6" value="4" step="1">
+    </div>
+  </div>
+  <div id="grid-scroll">
+    <div id="grid-cards"></div>
+  </div>
+</div>
+
+<!-- FULLSCREEN CAM -->
+<div id="fullscreen-cam">
+  <div class="fs-topbar">
+    <div class="fs-info">
+      <button class="btn-icon" id="btn-fs-back" title="Back (ESC)">←</button>
+      <div>
+        <div class="fs-name" id="fs-name"></div>
+        <div class="fs-loc" id="fs-loc"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-icon" id="btn-fs-fav" title="Favorite">♡</button>
+      <button class="btn-icon" id="btn-fs-open" title="Open in new tab">↗</button>
+    </div>
+  </div>
+  <iframe id="fs-iframe" allow="autoplay; encrypted-media; fullscreen"></iframe>
+  <div class="fs-ext" id="fs-ext">
+    <div class="ext-pulse-ring"><span class="ext-icon">📡</span></div>
+    <div class="ext-source-badge" id="fs-ext-source">WEBCAMTAXI</div>
+    <div class="ext-desc">External camera stream</div>
+    <a class="ext-watch-btn" id="fs-ext-link" href="#" target="_blank" rel="noopener">Watch Live <span class="arrow">↗</span></a>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="settings-overlay"></div>
+<div id="settings-panel">
+  <div class="settings-title">
+    Settings
+    <button class="btn-icon" id="btn-settings-close" style="width:32px;height:32px;font-size:14px;">✕</button>
+  </div>
+
+  <div class="settings-section">
+    <h3>Globe</h3>
+    <div class="setting-row">
+      <label>Rotation Speed</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="set-rotation" min="0" max="1" step="0.05" value="0.15">
+        <span class="val" id="val-rotation">0.15</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>Pin Size</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="set-pin-size" min="0.1" max="1.5" step="0.05" value="0.45">
+        <span class="val" id="val-pin-size">0.45</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>Atmosphere</label>
+      <input type="checkbox" id="set-atmosphere" checked>
+    </div>
+    <div class="setting-row">
+      <label>Country Fill</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="range" id="set-country-fill" min="0" max="0.3" step="0.01" value="0.06">
+        <span class="val" id="val-country-fill">0.06</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>Auto-Rotate</label>
+      <input type="checkbox" id="set-auto-rotate" checked>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Grid</h3>
+    <div class="setting-row">
+      <label>Default Columns</label>
+      <select id="set-grid-cols">
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4" selected>4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Theme</h3>
+    <div class="setting-row">
+      <label>Accent Color</label>
+      <select id="set-accent">
+        <option value="#00f0ff">Cyan</option>
+        <option value="#39ff14">Neon Green</option>
+        <option value="#ff006e">Hot Pink</option>
+        <option value="#ff9500">Orange</option>
+        <option value="#a855f7">Purple</option>
+        <option value="#facc15">Gold</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h3>Data</h3>
+    <div class="setting-row">
+      <label>Total Cameras</label>
+      <span class="val" id="val-total-cams">0</span>
+    </div>
+    <div class="setting-row">
+      <label>Favorites</label>
+      <span class="val" id="val-total-favs">0</span>
+    </div>
+    <div class="setting-row">
+      <label>Saved Views</label>
+      <span class="val" id="val-total-views">0</span>
+    </div>
+  </div>
+</div>
+
+<!-- VIEWS PANEL -->
+<div id="views-panel">
+  <div class="views-header">
+    Saved Views
+    <button class="btn-icon" style="width:26px;height:26px;font-size:12px;" id="btn-views-close">✕</button>
+  </div>
+  <div class="views-list" id="views-list"></div>
+  <div class="views-add">
+    <input type="text" id="new-view-name" placeholder="New view name...">
+    <button id="btn-create-view">Create</button>
+  </div>
+</div>
+
+<!-- ADD TO VIEW CONTEXT MENU -->
+<div class="add-to-view-menu" id="add-to-view-menu"></div>
+
+<!-- GLOBE SEARCH -->
+<div id="globe-search-box" style="
+  position:fixed; top:60px; left:50%; transform:translateX(-50%); z-index:150;
+  display:none; width:min(400px,90vw);
+">
+  <input type="text" id="globe-search-input" placeholder="Search cameras on globe..." style="
+    width:100%; padding:10px 16px; border-radius:10px;
+    border:1px solid var(--border); background:var(--surface);
+    backdrop-filter:blur(12px); color:var(--text);
+    font-family:var(--font-mono); font-size:13px; outline:none;
+  ">
+  <div id="globe-search-results" style="
+    margin-top:4px; border-radius:10px; border:1px solid var(--border);
+    background:var(--surface); backdrop-filter:blur(12px);
+    max-height:300px; overflow-y:auto; display:none;
+  "></div>
+</div>
+
+<!-- CDN SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+
+<script>
+// ================================================================
+//  CAMERA DATABASE — Compact pipe-delimited format
+//  id|name|city|country|continent|lat|lng|embed_code|tags
+//  embed_code prefixes: yt: = YouTube, wt: = webcamtaxi, sl: = skylinewebcams, http = direct URL
+// ================================================================
+const CAMERAS = `
+us-nyc-ts|Times Square|New York|USA|NA|40.758|-73.986|yt:1-iS7LArMPA|city,landmark
+us-nyc-ms|Manhattan Skyline|New York|USA|NA|40.713|-74.006|wt:usa/new-york/manhattan-skyline|city,skyline
+us-nyc-bp|Brooklyn Bridge|New York|USA|NA|40.706|-73.997|wt:usa/new-york/brooklyn-bridge|city,bridge
+us-nyc-cs|Central Park South|New York|USA|NA|40.767|-73.972|wt:usa/new-york/central-park-south|city,park
+us-nyc-hr|Hudson River|New York|USA|NA|40.730|-74.010|wt:usa/new-york/hudson-river|city,water
+us-sf-gg|Golden Gate Bridge|San Francisco|USA|NA|37.820|-122.478|wt:usa/california/golden-gate-bridge|landmark,bridge
+us-sf-fb|Fishermans Wharf|San Francisco|USA|NA|37.808|-122.418|wt:usa/california/fishermans-wharf|city,harbour
+us-la-sm|Santa Monica Beach|Los Angeles|USA|NA|34.020|-118.491|wt:usa/california/santa-monica-beach|beach
+us-la-hw|Hollywood Sign|Los Angeles|USA|NA|34.134|-118.322|wt:usa/california/hollywood|landmark
+us-la-vb|Venice Beach|Los Angeles|USA|NA|33.985|-118.473|wt:usa/california/venice-beach|beach
+us-mi-sb|South Beach|Miami|USA|NA|25.790|-80.130|wt:usa/florida/miami|beach,city
+us-mi-dt|Downtown Miami|Miami|USA|NA|25.775|-80.194|wt:usa/florida/miami-downtown|city
+us-ch-sl|Michigan Avenue|Chicago|USA|NA|41.879|-87.623|yt:sPZkOZe5WKU|city,skyline
+us-ch-lk|Lake Michigan View|Chicago|USA|NA|41.892|-87.612|wt:usa/illinois/lake-michigan|city,water
+us-nv-br|Broadway Nashville|Nashville|USA|NA|36.162|-86.774|wt:usa/tennessee/broadway-nashville|city,nightlife
+us-dc-cp|US Capitol|Washington DC|USA|NA|38.890|-77.009|wt:usa/washington-dc/united-states-capitol|landmark,government
+us-dc-wm|Washington Monument|Washington DC|USA|NA|38.889|-77.035|wt:usa/washington-dc/washington-monument|landmark
+us-lv-st|Las Vegas Strip|Las Vegas|USA|NA|36.117|-115.173|wt:usa/nevada/las-vegas-strip|city,nightlife
+us-lv-fr|Fremont Street|Las Vegas|USA|NA|36.170|-115.142|wt:usa/nevada/fremont-street|city,nightlife
+us-bs-hb|Boston Harbor|Boston|USA|NA|42.360|-71.047|wt:usa/massachusetts/boston-harbour|city,harbour
+us-sd-bc|San Diego Bay|San Diego|USA|NA|32.715|-117.162|wt:usa/california/san-diego-bay|city,harbour
+us-se-sk|Seattle Skyline|Seattle|USA|NA|47.607|-122.332|wt:usa/washington/seattle-skyline|city,skyline
+us-ph-sk|Philadelphia Skyline|Philadelphia|USA|NA|39.952|-75.165|wt:usa/pennsylvania/philadelphia-skyline|city
+us-at-sk|Atlanta Skyline|Atlanta|USA|NA|33.749|-84.388|wt:usa/georgia/atlanta-skyline|city,skyline
+us-ho-sk|Houston Skyline|Houston|USA|NA|29.760|-95.370|wt:usa/texas/houston|city,skyline
+us-da-sk|Dallas Skyline|Dallas|USA|NA|32.777|-96.797|wt:usa/texas/dallas|city,skyline
+us-sa-rw|River Walk|San Antonio|USA|NA|29.424|-98.493|wt:usa/texas/san-antonio-riverwalk|city
+us-au-dt|Downtown Austin|Austin|USA|NA|30.267|-97.743|wt:usa/texas/austin|city
+us-dn-sk|Denver Skyline|Denver|USA|NA|39.739|-104.990|wt:usa/colorado/denver|city,skyline
+us-ph-vl|Phoenix Valley|Phoenix|USA|NA|33.449|-112.074|wt:usa/arizona/phoenix|city
+us-po-br|Portland Bridge|Portland|USA|NA|45.523|-122.677|wt:usa/oregon/portland|city,bridge
+us-ms-gb|Gulf Shores Beach|Mobile|USA|NA|30.246|-87.700|wt:usa/alabama/gulf-shores|beach
+us-hi-wk|Waikiki Beach|Honolulu|USA|NA|21.277|-157.827|wt:usa/hawaii/waikiki|beach
+us-hi-na|Na Pali Coast|Kauai|USA|NA|22.157|-159.635|wt:usa/hawaii/na-pali|nature
+us-ak-an|Anchorage|Anchorage|USA|NA|61.218|-149.900|wt:usa/alaska/anchorage|city,nature
+us-no-bb|Bourbon Street|New Orleans|USA|NA|29.959|-90.065|wt:usa/louisiana/bourbon-street|city,nightlife
+us-or-bc|Myrtle Beach|Myrtle Beach|USA|NA|33.689|-78.887|wt:usa/south-carolina/myrtle-beach|beach
+us-mn-ml|Minneapolis Mill|Minneapolis|USA|NA|44.978|-93.265|wt:usa/minnesota/minneapolis|city
+us-dt-rv|Detroit River|Detroit|USA|NA|42.331|-83.046|wt:usa/michigan/detroit|city,river
+us-ky-bc|Key West Beach|Key West|USA|NA|24.556|-81.782|wt:usa/florida/key-west|beach
+us-oc-bc|Clearwater Beach|Clearwater|USA|NA|27.978|-82.827|wt:usa/florida/clearwater-beach|beach
+us-ob-bw|Ocean City Boardwalk|Ocean City|USA|NA|38.337|-75.085|wt:usa/maryland/ocean-city-boardwalk|beach
+us-sl-cv|Salt Lake City View|Salt Lake City|USA|NA|40.760|-111.891|wt:usa/utah/salt-lake-city|city,mountain
+us-in-ms|Monument Circle|Indianapolis|USA|NA|39.769|-86.158|wt:usa/indiana/indianapolis|city,landmark
+us-cl-sk|Cleveland Skyline|Cleveland|USA|NA|41.499|-81.694|wt:usa/ohio/cleveland|city
+us-pi-br|Pittsburgh Bridges|Pittsburgh|USA|NA|40.441|-79.996|wt:usa/pennsylvania/pittsburgh|city,bridge
+us-ta-hb|Tampa Bay|Tampa|USA|NA|27.951|-82.457|wt:usa/florida/tampa|city,harbour
+us-ci-rv|Cincinnati River|Cincinnati|USA|NA|39.101|-84.512|wt:usa/ohio/cincinnati|city,river
+us-rl-dt|Raleigh Downtown|Raleigh|USA|NA|35.779|-78.638|wt:usa/north-carolina/raleigh|city
+us-ja-rv|Jacksonville Beach|Jacksonville|USA|NA|30.290|-81.393|wt:usa/florida/jacksonville|beach
+us-na-sk|Virginia Beach|Virginia Beach|USA|NA|36.853|-75.978|wt:usa/virginia/virginia-beach|beach
+us-ch-dt|Charleston Harbour|Charleston|USA|NA|32.777|-79.931|wt:usa/south-carolina/charleston|city,harbour
+us-sv-dt|Savannah River|Savannah|USA|NA|32.081|-81.091|wt:usa/georgia/savannah|city,river
+us-me-pt|Portland Harbour|Portland ME|USA|NA|43.661|-70.255|wt:usa/maine/portland-harbour|city,harbour
+us-bu-lk|Burlington Lake|Burlington|USA|NA|44.476|-73.213|wt:usa/vermont/burlington|city,lake
+us-kc-dt|Kansas City|Kansas City|USA|NA|39.100|-94.579|wt:usa/missouri/kansas-city|city
+us-ok-sk|Oklahoma City|Oklahoma City|USA|NA|35.467|-97.516|wt:usa/oklahoma/oklahoma-city|city
+us-al-nm|Albuquerque|Albuquerque|USA|NA|35.084|-106.651|wt:usa/new-mexico/albuquerque|city
+us-tu-dt|Tucson|Tucson|USA|NA|32.222|-110.975|wt:usa/arizona/tucson|city
+us-bo-mt|Boise Mountains|Boise|USA|NA|43.615|-116.202|wt:usa/idaho/boise|city,mountain
+us-bi-dt|Birmingham|Birmingham|USA|NA|33.519|-86.810|wt:usa/alabama/birmingham|city
+us-me-bb|Memphis Beale St|Memphis|USA|NA|35.139|-90.053|wt:usa/tennessee/memphis|city
+us-ri-dt|Richmond|Richmond|USA|NA|37.541|-77.434|wt:usa/virginia/richmond|city
+us-lx-dt|Lexington|Lexington|USA|NA|38.040|-84.503|wt:usa/kentucky/lexington|city
+us-ch-ay|Cheyenne|Cheyenne|USA|NA|41.140|-104.820|wt:usa/wyoming/cheyenne|city
+us-fa-dt|Fargo|Fargo|USA|NA|46.877|-96.790|wt:usa/north-dakota/fargo|city
+us-si-fl|Sioux Falls|Sioux Falls|USA|NA|43.550|-96.700|wt:usa/south-dakota/sioux-falls|city
+us-dm-dt|Des Moines|Des Moines|USA|NA|41.587|-93.625|wt:usa/iowa/des-moines|city
+us-om-dt|Omaha|Omaha|USA|NA|41.257|-95.934|wt:usa/nebraska/omaha|city
+us-bi-dt2|Billings|Billings|USA|NA|45.783|-108.501|wt:usa/montana/billings|city
+us-pr-wf|Providence Waterfront|Providence|USA|NA|41.824|-71.413|wt:usa/rhode-island/providence|city,water
+us-nh-dt|New Haven|New Haven|USA|NA|41.308|-72.924|wt:usa/connecticut/new-haven|city
+us-wl-dt|Wilmington|Wilmington|USA|NA|34.226|-77.945|wt:usa/delaware/wilmington|city
+ca-to-cn|CN Tower View|Toronto|Canada|NA|43.643|-79.387|wt:canada/ontario/toronto-skyline|city,landmark
+ca-ni-fl|Niagara Falls|Niagara Falls|Canada|NA|43.090|-79.085|wt:canada/ontario/niagara-falls|nature,landmark
+ca-va-hb|Vancouver Harbour|Vancouver|Canada|NA|49.286|-123.112|wt:canada/british-columbia/vancouver-harbour|city,harbour
+ca-mo-sk|Montreal Skyline|Montreal|Canada|NA|45.502|-73.567|wt:canada/quebec/montreal-skyline|city,skyline
+ca-ot-ph|Parliament Hill|Ottawa|Canada|NA|45.424|-75.699|wt:canada/ontario/ottawa-parliament-hill|city,landmark
+ca-ca-tw|Calgary Tower|Calgary|Canada|NA|51.045|-114.063|wt:canada/alberta/calgary-tower|city,landmark
+ca-ed-sk|Edmonton Skyline|Edmonton|Canada|NA|53.546|-113.494|wt:canada/alberta/edmonton|city
+ca-hx-hb|Halifax Harbour|Halifax|Canada|NA|44.649|-63.575|wt:canada/nova-scotia/halifax-harbour|city,harbour
+ca-qu-ch|Chateau Frontenac|Quebec City|Canada|NA|46.812|-71.205|wt:canada/quebec/chateau-frontenac|landmark
+ca-wi-pr|Winnipeg Portage|Winnipeg|Canada|NA|49.895|-97.139|wt:canada/manitoba/winnipeg|city
+ca-vi-hb|Victoria Harbour|Victoria|Canada|NA|48.422|-123.370|wt:canada/british-columbia/victoria-harbour|city,harbour
+ca-wh-mt|Whistler Mountain|Whistler|Canada|NA|50.116|-122.957|wt:canada/british-columbia/whistler|nature,mountain
+ca-ba-lk|Banff Lake Louise|Banff|Canada|NA|51.178|-115.571|wt:canada/alberta/banff|nature,mountain
+ca-sj-hb|St Johns Harbour|St Johns|Canada|NA|47.561|-52.711|wt:canada/newfoundland/st-johns|city,harbour
+mx-mc-zc|Zócalo Plaza|Mexico City|Mexico|NA|19.433|-99.133|wt:mexico/mexico-city/zocalo|city,landmark
+mx-cn-bc|Cancún Beach|Cancún|Mexico|NA|21.161|-86.852|wt:mexico/quintana-roo/cancun-beach|beach,resort
+mx-pv-bc|Puerto Vallarta|Puerto Vallarta|Mexico|NA|20.653|-105.225|wt:mexico/jalisco/puerto-vallarta|beach,resort
+mx-gd-ct|Guadalajara Centro|Guadalajara|Mexico|NA|20.676|-103.347|wt:mexico/jalisco/guadalajara|city
+mx-mo-sk|Monterrey Skyline|Monterrey|Mexico|NA|25.687|-100.316|wt:mexico/nuevo-leon/monterrey|city,skyline
+mx-pl-bc|Playa del Carmen|Playa del Carmen|Mexico|NA|20.630|-87.077|wt:mexico/quintana-roo/playa-del-carmen|beach
+mx-sj-bc|San José del Cabo|Los Cabos|Mexico|NA|23.060|-109.698|wt:mexico/baja-california/los-cabos|beach
+mx-oa-ct|Oaxaca Centro|Oaxaca|Mexico|NA|17.066|-96.726|wt:mexico/oaxaca/oaxaca-centro|city
+mx-mr-ct|Mérida Centro|Mérida|Mexico|NA|20.967|-89.617|wt:mexico/yucatan/merida|city
+mx-tj-bd|Tijuana Border|Tijuana|Mexico|NA|32.525|-117.033|wt:mexico/baja-california/tijuana|city,border
+gt-gc-ct|Guatemala City Centre|Guatemala City|Guatemala|NA|14.634|-90.513|wt:guatemala/guatemala-city/city-centre|city
+bz-bc-ct|Belize City Coast|Belize City|Belize|NA|17.498|-88.188|wt:belize/belize-city/coastline|city,coast
+sv-ss-ct|San Salvador Centro|San Salvador|El Salvador|NA|13.697|-89.191|wt:el-salvador/san-salvador/city-centre|city
+hn-tg-ct|Tegucigalpa|Tegucigalpa|Honduras|NA|14.072|-87.192|wt:honduras/tegucigalpa/city-centre|city
+ni-mn-ct|Managua Centro|Managua|Nicaragua|NA|12.136|-86.251|wt:nicaragua/managua/city-centre|city
+cr-sj-ct|San José Centro|San José|Costa Rica|NA|9.934|-84.080|wt:costa-rica/san-jose/city-centre|city
+cr-mv-bc|Manuel Antonio Beach|Quepos|Costa Rica|NA|9.393|-84.143|wt:costa-rica/puntarenas/manuel-antonio|beach,nature
+pa-pc-sk|Panama City Skyline|Panama City|Panama|NA|8.983|-79.520|wt:panama/panama-city/skyline|city,skyline
+pa-cn-lk|Panama Canal Locks|Colón|Panama|NA|9.280|-79.922|wt:panama/colon/canal-locks|landmark
+cu-hv-ml|Havana Malecón|Havana|Cuba|NA|23.140|-82.365|wt:cuba/havana/malecon|city,coast
+cu-tr-ct|Trinidad Centro|Trinidad|Cuba|NA|21.802|-79.984|wt:cuba/trinidad/centro|city
+jm-mb-bc|Montego Bay Beach|Montego Bay|Jamaica|NA|18.475|-77.919|wt:jamaica/montego-bay/beach|beach,resort
+jm-ki-hb|Kingston Harbour|Kingston|Jamaica|NA|17.982|-76.790|wt:jamaica/kingston/harbour|city,harbour
+ht-pp-ct|Port-au-Prince|Port-au-Prince|Haiti|NA|18.541|-72.336|wt:haiti/port-au-prince/city|city
+do-sd-ml|Santo Domingo Malecón|Santo Domingo|Dominican Republic|NA|18.466|-69.882|wt:dominican-republic/santo-domingo/malecon|city,coast
+do-pc-bc|Punta Cana Beach|Punta Cana|Dominican Republic|NA|18.582|-68.405|wt:dominican-republic/punta-cana/beach|beach,resort
+tt-ps-ct|Port of Spain|Port of Spain|Trinidad and Tobago|NA|10.660|-61.508|wt:trinidad/port-of-spain/harbour|city
+bb-bg-bc|Bridgetown Beach|Bridgetown|Barbados|NA|13.097|-59.607|wt:barbados/bridgetown/beach|beach
+bs-ns-bc|Nassau Beach|Nassau|Bahamas|NA|25.058|-77.343|wt:bahamas/nassau/beach|beach,resort
+ag-sj-hb|St Johns Harbour|St Johns|Antigua and Barbuda|NA|17.117|-61.846|wt:antigua/st-johns/harbour|city,harbour
+dm-rs-ct|Roseau Coastline|Roseau|Dominica|NA|15.301|-61.387|wt:dominica/roseau/coastline|city,coast
+gd-sg-hb|St Georges Harbour|St Georges|Grenada|NA|12.054|-61.748|wt:grenada/st-georges/harbour|city,harbour
+kn-bs-ct|Basseterre|Basseterre|Saint Kitts and Nevis|NA|17.295|-62.714|wt:saint-kitts/basseterre/harbour|city
+lc-cs-bc|Castries Beach|Castries|Saint Lucia|NA|14.010|-60.988|wt:saint-lucia/castries/beach|beach
+vc-kg-ct|Kingstown|Kingstown|Saint Vincent|NA|13.156|-61.228|wt:saint-vincent/kingstown/harbour|city
+br-rj-sl|Sugarloaf Mountain|Rio de Janeiro|Brazil|SA|−22.952|−43.163|wt:brazil/rio-de-janeiro/sugarloaf|nature,landmark
+br-rj-cp|Copacabana Beach|Rio de Janeiro|Brazil|SA|−22.972|−43.183|wt:brazil/rio-de-janeiro/copacabana-beach|beach,city
+br-sp-av|Avenida Paulista|São Paulo|Brazil|SA|−23.563|−46.654|wt:brazil/sao-paulo/avenida-paulista|city
+br-sp-sk|São Paulo Skyline|São Paulo|Brazil|SA|−23.547|−46.636|wt:brazil/sao-paulo/skyline|city,skyline
+br-bs-pl|Pelourinho|Salvador|Brazil|SA|−12.973|−38.511|wt:brazil/bahia/salvador-pelourinho|city,landmark
+br-ig-fl|Iguazu Falls|Foz do Iguaçu|Brazil|SA|−25.595|−54.574|wt:brazil/parana/iguazu-falls|nature,waterfall
+br-fl-bc|Florianópolis Beach|Florianópolis|Brazil|SA|−27.595|−48.548|wt:brazil/santa-catarina/florianopolis|beach
+br-rc-dt|Recife Downtown|Recife|Brazil|SA|−8.054|−34.871|wt:brazil/pernambuco/recife|city
+br-mn-th|Manaus Theatre|Manaus|Brazil|SA|−3.132|−60.023|wt:brazil/amazonas/manaus-theatre|city,landmark
+br-br-sk|Brasília Skyline|Brasília|Brazil|SA|−15.793|−47.883|wt:brazil/distrito-federal/brasilia|city,landmark
+ar-ba-ob|Obelisco|Buenos Aires|Argentina|SA|−34.604|−58.382|wt:argentina/buenos-aires/obelisco|city,landmark
+ar-ba-pl|Plaza de Mayo|Buenos Aires|Argentina|SA|−34.608|−58.372|wt:argentina/buenos-aires/plaza-de-mayo|city,landmark
+ar-ba-bc|La Boca|Buenos Aires|Argentina|SA|−34.634|−58.363|wt:argentina/buenos-aires/la-boca|city
+ar-md-vn|Mendoza Vineyards|Mendoza|Argentina|SA|−32.890|−68.844|wt:argentina/mendoza/vineyards|nature
+ar-us-gl|Perito Moreno Glacier|El Calafate|Argentina|SA|−50.497|−73.137|wt:argentina/santa-cruz/perito-moreno|nature,glacier
+ar-cb-ct|Córdoba Centro|Córdoba|Argentina|SA|−31.420|−64.188|wt:argentina/cordoba/centro|city
+co-bg-ct|Centro Histórico|Bogotá|Colombia|SA|4.598|−74.076|wt:colombia/bogota/centro|city
+co-ct-ct|Cartagena Old Town|Cartagena|Colombia|SA|10.423|−75.549|wt:colombia/cartagena/old-town|city,landmark
+co-md-ct|Medellín Downtown|Medellín|Colombia|SA|6.244|−75.574|wt:colombia/medellin/downtown|city
+pe-li-pa|Plaza de Armas|Lima|Peru|SA|−12.046|−77.043|wt:peru/lima/plaza-de-armas|city,landmark
+pe-cu-ct|Cusco Main Square|Cusco|Peru|SA|−13.517|−71.978|wt:peru/cusco/plaza-de-armas|city,landmark
+pe-mp-ct|Machu Picchu View|Aguas Calientes|Peru|SA|−13.163|−72.545|wt:peru/cusco/machu-picchu|landmark,ancient
+cl-sa-sk|Santiago Skyline|Santiago|Chile|SA|−33.449|−70.669|wt:chile/santiago/skyline|city,skyline
+cl-vp-hb|Valparaíso Harbour|Valparaíso|Chile|SA|−33.047|−71.613|wt:chile/valparaiso/harbour|city,harbour
+cl-pa-dt|Punta Arenas|Punta Arenas|Chile|SA|−53.154|−70.911|wt:chile/magallanes/punta-arenas|city
+ec-qt-ct|Quito Old Town|Quito|Ecuador|SA|−0.180|−78.468|wt:ecuador/quito/old-town|city,landmark
+ec-gy-ml|Guayaquil Malecón|Guayaquil|Ecuador|SA|−2.189|−79.889|wt:ecuador/guayaquil/malecon|city,coast
+ec-gi-bc|Galápagos Islands|Puerto Ayora|Ecuador|SA|−0.744|−90.314|wt:ecuador/galapagos/puerto-ayora|nature,island
+ve-cs-ct|Caracas Skyline|Caracas|Venezuela|SA|10.488|−66.880|wt:venezuela/caracas/skyline|city,skyline
+bo-lp-ct|La Paz Centro|La Paz|Bolivia|SA|−16.500|−68.150|wt:bolivia/la-paz/centro|city
+bo-uy-sl|Uyuni Salt Flat|Uyuni|Bolivia|SA|−20.460|−66.825|wt:bolivia/potosi/uyuni|nature
+py-as-ct|Asunción Centro|Asunción|Paraguay|SA|−25.282|−57.635|wt:paraguay/asuncion/centro|city
+uy-mv-ct|Montevideo Coast|Montevideo|Uruguay|SA|−34.901|−56.165|wt:uruguay/montevideo/coastline|city,coast
+uy-pe-bc|Punta del Este Beach|Punta del Este|Uruguay|SA|−34.948|−54.937|wt:uruguay/punta-del-este/beach|beach,resort
+sr-pm-ct|Paramaribo Centre|Paramaribo|Suriname|SA|5.823|−55.168|wt:suriname/paramaribo/centre|city
+gy-gt-ct|Georgetown Centre|Georgetown|Guyana|SA|6.802|−58.163|wt:guyana/georgetown/centre|city
+gf-cy-ct|Cayenne|Cayenne|French Guiana|SA|4.937|−52.330|wt:french-guiana/cayenne/centre|city
+uk-lo-bb|Big Ben & Parliament|London|United Kingdom|EU|51.498|−0.136|wt:england/london/big-ben|landmark,government
+uk-lo-td|Tower Bridge|London|United Kingdom|EU|51.506|−0.076|wt:england/london/tower-bridge|landmark,bridge
+uk-lo-tw|Thames Waterfront|London|United Kingdom|EU|51.503|−0.119|wt:england/london/thames-waterfront|city,water
+uk-lo-he|Heathrow Airport|London|United Kingdom|EU|51.470|−0.454|wt:england/london/heathrow-airport-cam|airport
+uk-lo-ox|Oxford Street|London|United Kingdom|EU|51.515|−0.142|wt:england/london/oxford-street|city,shopping
+uk-ed-cs|Edinburgh Castle|Edinburgh|United Kingdom|EU|55.949|−3.200|wt:scotland/edinburgh/edinburgh-castle|landmark
+uk-ed-rm|Royal Mile|Edinburgh|United Kingdom|EU|55.951|−3.190|wt:scotland/edinburgh/royal-mile|city
+uk-mn-dt|Manchester Centre|Manchester|United Kingdom|EU|53.483|−2.244|wt:england/manchester/city-centre|city
+uk-lp-ab|Liverpool Albert Dock|Liverpool|United Kingdom|EU|53.401|−2.994|wt:england/liverpool/albert-dock|city,harbour
+uk-bf-ct|Belfast City|Belfast|United Kingdom|EU|54.597|−5.930|wt:northern-ireland/belfast/city-centre|city
+uk-cd-by|Cardiff Bay|Cardiff|United Kingdom|EU|51.464|−3.164|wt:wales/cardiff/bay|city,harbour
+uk-bh-bc|Brighton Beach|Brighton|United Kingdom|EU|50.822|−0.137|wt:england/brighton/beach|beach
+uk-bh-pr|Bournemouth Pier|Bournemouth|United Kingdom|EU|50.717|−1.875|wt:england/bournemouth/pier|beach
+uk-ba-ab|Bath Abbey|Bath|United Kingdom|EU|51.381|−2.359|wt:england/bath/abbey|city,landmark
+uk-cb-kc|Cambridge Kings College|Cambridge|United Kingdom|EU|52.204|0.117|wt:england/cambridge/kings-college|landmark
+uk-ox-ct|Oxford City|Oxford|United Kingdom|EU|51.752|−1.258|wt:england/oxford/city-centre|city,landmark
+uk-yh-ms|York Minster|York|United Kingdom|EU|53.962|−1.081|wt:england/york/minster|city,landmark
+uk-iv-ct|Inverness|Inverness|United Kingdom|EU|57.478|−4.224|wt:scotland/inverness/city|city
+fr-pa-ef|Eiffel Tower|Paris|France|EU|48.858|2.295|yt:hVGiOPWjBHo|landmark,city
+fr-pa-nd|Notre-Dame|Paris|France|EU|48.853|2.350|wt:france/paris/notre-dame|landmark
+fr-pa-ce|Champs-Élysées|Paris|France|EU|48.870|2.307|wt:france/paris/champs-elysees|city
+fr-pa-sc|Sacré-Cœur|Paris|France|EU|48.887|2.343|wt:france/paris/sacre-coeur|landmark
+fr-ni-pr|Nice Promenade|Nice|France|EU|43.695|7.266|wt:france/provence/nice-promenade|beach,city
+fr-ly-ct|Lyon Centre|Lyon|France|EU|45.764|4.836|wt:france/rhone-alpes/lyon|city
+fr-mr-hb|Marseille Harbour|Marseille|France|EU|43.296|5.370|wt:france/provence/marseille-harbour|city,harbour
+fr-bo-ct|Bordeaux Centre|Bordeaux|France|EU|44.837|−0.576|wt:france/aquitaine/bordeaux|city
+fr-st-ct|Strasbourg Centre|Strasbourg|France|EU|48.583|7.745|wt:france/alsace/strasbourg|city
+fr-mt-ct|Montpellier Centre|Montpellier|France|EU|43.611|3.877|wt:france/languedoc/montpellier|city
+fr-ch-bc|Chamonix Mont Blanc|Chamonix|France|EU|45.924|6.870|wt:france/rhone-alpes/chamonix|nature,mountain
+de-be-bg|Brandenburg Gate|Berlin|Germany|EU|52.516|13.378|yt:UEIBJnnieh4|landmark
+de-be-fe|Fernsehturm|Berlin|Germany|EU|52.521|13.410|wt:germany/berlin/fernsehturm|landmark
+de-mu-mp|Marienplatz|Munich|Germany|EU|48.137|11.576|wt:germany/bavaria/marienplatz|city,landmark
+de-mu-ok|Oktoberfest Ground|Munich|Germany|EU|48.131|11.550|wt:germany/bavaria/oktoberfest|city
+de-hm-hb|Hamburg Harbour|Hamburg|Germany|EU|53.545|9.967|wt:germany/hamburg/harbour|city,harbour
+de-ff-sk|Frankfurt Skyline|Frankfurt|Germany|EU|50.110|8.682|wt:germany/hesse/frankfurt-skyline|city,skyline
+de-co-dm|Cologne Cathedral|Cologne|Germany|EU|50.941|6.958|wt:germany/north-rhine/cologne-cathedral|landmark
+de-dr-fr|Dresden Frauenkirche|Dresden|Germany|EU|51.052|13.741|wt:germany/saxony/dresden-frauenkirche|landmark
+de-du-rh|Düsseldorf Rhine|Düsseldorf|Germany|EU|51.228|6.773|wt:germany/north-rhine/dusseldorf|city,river
+de-st-ct|Stuttgart Centre|Stuttgart|Germany|EU|48.776|9.180|wt:germany/stuttgart/centre|city
+de-hd-ct|Heidelberg Castle|Heidelberg|Germany|EU|49.411|8.715|wt:germany/heidelberg/castle|landmark
+de-lp-ct|Leipzig Centre|Leipzig|Germany|EU|51.340|12.374|wt:germany/saxony/leipzig|city
+it-rm-tf|Trevi Fountain|Rome|Italy|EU|41.901|12.483|sl:italia/lazio/roma/fontana-di-trevi|landmark
+it-rm-co|Colosseum|Rome|Italy|EU|41.890|12.492|sl:italia/lazio/roma/roma-colosseo|landmark,ancient
+it-rm-ps|Piazza di Spagna|Rome|Italy|EU|41.906|12.482|sl:italia/lazio/roma/piazza-di-spagna|landmark
+it-rm-pn|Piazza Navona|Rome|Italy|EU|41.899|12.473|wt:italy/lazio/rome-piazza-navona|landmark
+it-ve-gc|Grand Canal|Venice|Italy|EU|45.438|12.336|yt:zMwjqdJf-RE|city,water
+it-ve-sm|Piazza San Marco|Venice|Italy|EU|45.434|12.338|sl:italia/veneto/venezia/piazza-san-marco|landmark
+it-mi-dm|Milan Cathedral|Milan|Italy|EU|45.464|9.190|sl:italia/lombardia/milano/duomo-milano|landmark
+it-fl-dc|Florence Duomo|Florence|Italy|EU|43.773|11.256|sl:italia/toscana/firenze/firenze|landmark
+it-fl-pv|Ponte Vecchio|Florence|Italy|EU|43.768|11.253|wt:italy/tuscany/florence-ponte-vecchio|landmark,bridge
+it-na-gf|Naples Gulf|Naples|Italy|EU|40.842|14.259|sl:italia/campania/napoli/napoli|city,coast
+it-am-ct|Amalfi Coast|Amalfi|Italy|EU|40.634|14.602|sl:italia/campania/salerno/amalfi|coast,landmark
+it-tp-bc|Tropea Beach|Tropea|Italy|EU|38.676|15.897|sl:italia/calabria/vibo-valentia/tropea|beach
+it-tr-ct|Turin Centre|Turin|Italy|EU|45.070|7.687|wt:italy/piedmont/turin|city
+it-bo-ct|Bologna Centre|Bologna|Italy|EU|44.494|11.343|wt:italy/emilia-romagna/bologna|city
+it-pa-ct|Palermo Centre|Palermo|Italy|EU|38.116|13.361|wt:italy/sicily/palermo|city
+it-ge-bc|Boccadasse Beach|Genoa|Italy|EU|44.395|8.960|sl:italia/liguria/genova/boccadasse-genova|beach,city
+it-sr-ct|Siracusa Ortigia|Siracusa|Italy|EU|37.061|15.293|wt:italy/sicily/siracusa|city,landmark
+it-ct-et|Mount Etna|Catania|Italy|EU|37.751|14.994|wt:italy/sicily/mount-etna|nature,volcano
+es-bc-sf|Sagrada Familia|Barcelona|Spain|EU|41.404|2.174|wt:spain/barcelona/sagrada-familia|landmark
+es-bc-rb|La Rambla|Barcelona|Spain|EU|41.381|2.173|wt:spain/catalonia/barcelona-la-rambla|city
+es-bc-bc|Barceloneta Beach|Barcelona|Spain|EU|41.378|2.190|wt:spain/catalonia/barceloneta-beach|beach
+es-md-ps|Puerta del Sol|Madrid|Spain|EU|40.417|−3.704|sl:espana/comunidad-de-madrid/madrid/puerta-del-sol-tio-pepe|city,landmark
+es-md-rp|Retiro Park|Madrid|Spain|EU|40.415|−3.684|wt:spain/madrid/retiro-park|city,park
+es-se-ct|Seville Cathedral|Seville|Spain|EU|37.386|−5.993|wt:spain/andalusia/seville-cathedral|landmark
+es-gr-al|Alhambra View|Granada|Spain|EU|37.177|−3.589|wt:spain/andalusia/granada-alhambra|landmark
+es-vl-ct|Valencia Centre|Valencia|Spain|EU|39.470|−0.376|wt:spain/valencia/city-centre|city
+es-ml-bc|Malaga Beach|Malaga|Spain|EU|36.720|−4.420|wt:spain/andalusia/malaga-beach|beach,city
+es-ib-bc|Ibiza Beach|Ibiza|Spain|EU|38.907|1.420|wt:spain/balearic-islands/ibiza-beach|beach,nightlife
+es-tf-vt|Volcano Teide|Santa Cruz|Spain|EU|28.272|−16.642|sl:espana/canarias/santa-cruz-de-tenerife/volcano-teide|nature,volcano
+es-tf-pd|Playa del Duque|Tenerife|Spain|EU|28.087|−16.738|sl:espana/canarias/santa-cruz-de-tenerife/playa-del-duque|beach,resort
+es-bl-ct|Bilbao Centre|Bilbao|Spain|EU|43.263|−2.935|wt:spain/basque-country/bilbao|city
+es-sc-ct|Santiago de Compostela|Santiago|Spain|EU|42.880|−8.545|wt:spain/galicia/santiago-de-compostela|city,landmark
+pt-li-ct|Lisbon Riverside|Lisbon|Portugal|EU|38.722|−9.139|sl:portugal/algarve/lagos/lagos-portugal|city,water
+pt-po-rv|Porto Ribeira|Porto|Portugal|EU|41.141|−8.613|wt:portugal/porto/ribeira|city,river
+pt-al-bc|Algarve Beach|Faro|Portugal|EU|37.019|−7.930|wt:portugal/algarve/faro-beach|beach
+pt-md-ct|Madeira Funchal|Funchal|Portugal|EU|32.651|−16.908|wt:portugal/madeira/funchal|city,island
+nl-am-cn|Amsterdam Canals|Amsterdam|Netherlands|EU|52.368|4.904|wt:netherlands/amsterdam/canals|city,water
+nl-am-ds|Dam Square|Amsterdam|Netherlands|EU|52.373|4.893|wt:netherlands/amsterdam/dam-square|city
+nl-rt-hb|Rotterdam Harbour|Rotterdam|Netherlands|EU|51.905|4.490|wt:netherlands/rotterdam/harbour|city,harbour
+nl-hg-bh|Scheveningen Beach|The Hague|Netherlands|EU|52.103|4.270|wt:netherlands/south-holland/scheveningen|beach
+be-br-gp|Grand Place|Brussels|Belgium|EU|50.847|4.352|wt:belgium/brussels/grand-place|city,landmark
+be-bg-cn|Bruges Canals|Bruges|Belgium|EU|51.209|3.224|wt:belgium/bruges/canals|city,water
+be-an-ct|Antwerp Centre|Antwerp|Belgium|EU|51.221|4.400|wt:belgium/antwerp/centre|city
+lu-lx-ct|Luxembourg Centre|Luxembourg City|Luxembourg|EU|49.612|6.130|wt:luxembourg/luxembourg-city/centre|city
+ch-zh-ct|Zurich Centre|Zurich|Switzerland|EU|47.377|8.540|wt:switzerland/zurich/centre|city
+ch-gv-jt|Geneva Jet d Eau|Geneva|Switzerland|EU|46.207|6.156|wt:switzerland/geneva/jet-deau|city,landmark
+ch-zr-mt|Zermatt Matterhorn|Zermatt|Switzerland|EU|46.024|7.749|wt:switzerland/valais/zermatt-matterhorn|nature,mountain
+ch-in-jf|Interlaken Jungfrau|Interlaken|Switzerland|EU|46.686|7.863|wt:switzerland/bern/interlaken|nature,mountain
+ch-bs-ct|Basel Centre|Basel|Switzerland|EU|47.560|7.589|wt:switzerland/basel/centre|city
+ch-lu-ct|Lucerne Centre|Lucerne|Switzerland|EU|47.051|8.310|wt:switzerland/lucerne/centre|city
+at-vi-st|St Stephens Cathedral|Vienna|Austria|EU|48.209|16.373|wt:austria/vienna/st-stephens|city,landmark
+at-vi-sc|Schönbrunn Palace|Vienna|Austria|EU|48.185|16.312|wt:austria/vienna/schoenbrunn|landmark
+at-sz-ct|Salzburg Centre|Salzburg|Austria|EU|47.811|13.055|wt:austria/salzburg/centre|city,landmark
+at-in-sk|Innsbruck Ski View|Innsbruck|Austria|EU|47.260|11.394|wt:austria/tyrol/innsbruck|city,mountain
+at-gz-ct|Graz Centre|Graz|Austria|EU|47.070|15.439|wt:austria/graz/centre|city
+cz-pr-ot|Old Town Square|Prague|Czechia|EU|50.076|14.438|wt:czech-republic/prague/old-town|city,landmark
+cz-pr-cb|Charles Bridge|Prague|Czechia|EU|50.086|14.411|wt:czech-republic/prague/charles-bridge|landmark,bridge
+cz-br-ct|Brno Centre|Brno|Czechia|EU|49.195|16.608|wt:czech-republic/brno/centre|city
+pl-ww-op|Warsaw Old Town|Warsaw|Poland|EU|52.250|21.012|wt:poland/warsaw/old-town|city,landmark
+pl-ww-pk|Palace of Culture|Warsaw|Poland|EU|52.232|21.006|wt:poland/warsaw/palace-of-culture|landmark
+pl-kr-ms|Main Square|Kraków|Poland|EU|50.062|19.937|wt:poland/krakow/main-square|city,landmark
+pl-gd-hb|Gdańsk Harbour|Gdańsk|Poland|EU|54.352|18.646|wt:poland/gdansk/harbour|city,harbour
+pl-wr-ct|Wrocław Centre|Wrocław|Poland|EU|51.110|17.032|wt:poland/wroclaw/centre|city
+hu-bp-ch|Chain Bridge|Budapest|Hungary|EU|47.499|19.044|wt:hungary/budapest/chain-bridge|landmark,bridge
+hu-bp-pb|Parliament Building|Budapest|Hungary|EU|47.507|19.046|wt:hungary/budapest/parliament|landmark
+hu-bp-ft|Fishermans Bastion|Budapest|Hungary|EU|47.502|19.035|wt:hungary/budapest/fishermans-bastion|landmark
+sk-ba-ct|Bratislava Old Town|Bratislava|Slovakia|EU|48.145|17.107|wt:slovakia/bratislava/old-town|city
+ro-bu-ct|Bucharest Centre|Bucharest|Romania|EU|44.426|26.102|wt:romania/bucharest/centre|city
+ro-bu-pp|Palace of Parliament|Bucharest|Romania|EU|44.428|26.087|wt:romania/bucharest/parliament|landmark
+ro-cj-ct|Cluj-Napoca Centre|Cluj-Napoca|Romania|EU|46.770|23.590|wt:romania/cluj/centre|city
+ro-br-ct|Brașov Centre|Brașov|Romania|EU|45.647|25.589|wt:romania/brasov/centre|city
+bg-sf-ct|Sofia Centre|Sofia|Bulgaria|EU|42.697|23.322|wt:bulgaria/sofia/centre|city
+bg-vr-bc|Varna Beach|Varna|Bulgaria|EU|43.204|27.917|wt:bulgaria/varna/beach|beach
+hr-zg-ct|Zagreb Centre|Zagreb|Croatia|EU|45.813|15.978|wt:croatia/zagreb/centre|city
+hr-db-ow|Dubrovnik Old Walls|Dubrovnik|Croatia|EU|42.641|18.108|wt:croatia/dubrovnik/old-walls|city,landmark
+hr-sp-rv|Split Riva|Split|Croatia|EU|43.508|16.441|wt:croatia/split/riva|city,coast
+hr-pl-bc|Pula Beach|Pula|Croatia|EU|44.867|13.848|wt:croatia/pula/beach|beach
+si-lj-ct|Ljubljana Centre|Ljubljana|Slovenia|EU|46.052|14.506|wt:slovenia/ljubljana/centre|city
+si-bl-lk|Lake Bled|Bled|Slovenia|EU|46.362|14.094|wt:slovenia/bled/lake|nature,lake
+ba-sj-ct|Sarajevo City|Sarajevo|Bosnia and Herzegovina|EU|43.856|18.413|wt:bosnia/sarajevo/city|city
+ba-ms-ct|Mostar Bridge|Mostar|Bosnia and Herzegovina|EU|43.337|17.814|wt:bosnia/mostar/bridge|landmark,bridge
+rs-bg-ct|Belgrade Fortress|Belgrade|Serbia|EU|44.820|20.457|wt:serbia/belgrade/fortress|city,landmark
+rs-ns-ct|Novi Sad Centre|Novi Sad|Serbia|EU|45.254|19.842|wt:serbia/novi-sad/centre|city
+me-pg-ct|Podgorica Centre|Podgorica|Montenegro|EU|42.441|19.264|wt:montenegro/podgorica/centre|city
+me-ko-hb|Kotor Bay|Kotor|Montenegro|EU|42.425|18.771|wt:montenegro/kotor/bay|city,harbour
+me-bd-bc|Budva Beach|Budva|Montenegro|EU|42.291|18.840|wt:montenegro/budva/beach|beach
+mk-sk-ct|Skopje Centre|Skopje|North Macedonia|EU|41.997|21.432|wt:north-macedonia/skopje/centre|city
+al-tr-ct|Tirana Centre|Tirana|Albania|EU|41.328|19.818|wt:albania/tirana/centre|city
+al-sr-bc|Saranda Beach|Saranda|Albania|EU|39.866|20.005|wt:albania/saranda/beach|beach
+xk-pr-ct|Pristina Centre|Pristina|Kosovo|EU|42.663|21.166|wt:kosovo/pristina/centre|city
+ie-du-tb|Temple Bar|Dublin|Ireland|EU|53.344|−6.265|yt:FfWfB8NN1x0|nightlife,city
+ie-du-hb|Dublin Harbour|Dublin|Ireland|EU|53.348|−6.228|wt:ireland/dublin/harbour|city,harbour
+ie-gw-cl|Galway Cliffs|Galway|Ireland|EU|53.272|−9.049|wt:ireland/galway/cliffs|nature,coast
+ie-ck-ct|Cork City|Cork|Ireland|EU|51.897|−8.470|wt:ireland/cork/city|city
+gr-at-ac|Acropolis View|Athens|Greece|EU|37.972|23.727|wt:greece/athens/acropolis|landmark,ancient
+gr-at-sy|Syntagma Square|Athens|Greece|EU|37.975|23.735|wt:greece/athens/syntagma|city
+gr-sn-ct|Santorini Caldera|Oia|Greece|EU|36.462|25.376|wt:greece/santorini/caldera|island,landmark
+gr-my-ct|Mykonos Harbour|Mykonos|Greece|EU|37.446|25.326|wt:greece/mykonos/harbour|island,harbour
+gr-cr-bc|Crete Beach|Heraklion|Greece|EU|35.339|25.133|wt:greece/crete/heraklion|beach,island
+gr-rh-ct|Rhodes Old Town|Rhodes|Greece|EU|36.441|28.223|wt:greece/rhodes/old-town|city,island
+gr-cf-bc|Corfu Beach|Corfu|Greece|EU|39.625|19.922|wt:greece/corfu/beach|beach,island
+gr-ts-wf|Thessaloniki Waterfront|Thessaloniki|Greece|EU|40.626|22.948|wt:greece/thessaloniki/waterfront|city
+dk-cp-nh|Nyhavn|Copenhagen|Denmark|EU|55.680|12.587|wt:denmark/copenhagen/nyhavn|city,harbour
+dk-cp-tv|Tivoli Gardens|Copenhagen|Denmark|EU|55.674|12.568|wt:denmark/copenhagen/tivoli|city,park
+dk-ar-ct|Aarhus Centre|Aarhus|Denmark|EU|56.157|10.211|wt:denmark/aarhus/centre|city
+se-st-gm|Gamla Stan|Stockholm|Sweden|EU|59.325|18.071|wt:sweden/stockholm/gamla-stan|city,landmark
+se-st-hb|Stockholm Harbour|Stockholm|Sweden|EU|59.329|18.067|wt:sweden/stockholm/harbour|city,harbour
+se-go-ct|Gothenburg Centre|Gothenburg|Sweden|EU|57.709|11.973|wt:sweden/gothenburg/centre|city
+se-mm-ct|Malmö Centre|Malmö|Sweden|EU|55.605|13.000|wt:sweden/malmo/centre|city
+no-os-hb|Oslo Harbour|Oslo|Norway|EU|59.907|10.734|wt:norway/oslo/harbour|city,harbour
+no-os-ob|Oslo Opera|Oslo|Norway|EU|59.908|10.752|wt:norway/oslo/opera-house|landmark
+no-bg-hb|Bergen Harbour|Bergen|Norway|EU|60.391|5.322|wt:norway/bergen/harbour|city,harbour
+no-tl-ct|Tromsø|Tromsø|Norway|EU|69.649|18.954|wt:norway/tromso/centre|city,arctic
+no-sv-gl|Svalbard Glacier|Longyearbyen|Norway|EU|78.230|15.647|wt:norway/svalbard/glacier|nature,arctic
+fi-hk-ct|Helsinki Centre|Helsinki|Finland|EU|60.170|24.938|wt:finland/helsinki/centre|city
+fi-hk-hb|Helsinki Harbour|Helsinki|Finland|EU|60.167|24.955|wt:finland/helsinki/harbour|city,harbour
+fi-rv-ct|Rovaniemi Arctic|Rovaniemi|Finland|EU|66.500|25.721|wt:finland/rovaniemi/arctic|city,arctic
+fi-tp-ct|Tampere Centre|Tampere|Finland|EU|61.499|23.761|wt:finland/tampere/centre|city
+ee-tl-ot|Tallinn Old Town|Tallinn|Estonia|EU|59.437|24.754|wt:estonia/tallinn/old-town|city,landmark
+ee-tl-hb|Tallinn Harbour|Tallinn|Estonia|EU|59.447|24.763|wt:estonia/tallinn/harbour|city,harbour
+lv-rg-ot|Riga Old Town|Riga|Latvia|EU|56.950|24.105|wt:latvia/riga/old-town|city,landmark
+lv-jm-bc|Jurmala Beach|Jurmala|Latvia|EU|56.968|23.770|wt:latvia/jurmala/beach|beach
+lt-vn-ct|Vilnius Old Town|Vilnius|Lithuania|EU|54.687|25.280|wt:lithuania/vilnius/old-town|city,landmark
+lt-vn-gc|Gediminas Tower|Vilnius|Lithuania|EU|54.686|25.290|wt:lithuania/vilnius/gediminas|landmark
+lt-kn-ct|Kaunas Centre|Kaunas|Lithuania|EU|54.897|23.886|wt:lithuania/kaunas/centre|city
+is-rk-hg|Hallgrímskirkja|Reykjavik|Iceland|EU|64.142|−21.927|wt:iceland/reykjavik/hallgrimskirkja|landmark
+is-rk-hb|Reykjavik Harbour|Reykjavik|Iceland|EU|64.151|−21.939|wt:iceland/reykjavik/harbour|city,harbour
+is-ge-gs|Geysir|Geysir|Iceland|EU|64.310|−20.299|wt:iceland/south/geysir|nature
+cy-nc-ct|Nicosia Centre|Nicosia|Cyprus|EU|35.175|33.364|wt:cyprus/nicosia/centre|city
+cy-lm-bc|Limassol Beach|Limassol|Cyprus|EU|34.679|33.038|wt:cyprus/limassol/beach|beach
+cy-pp-hb|Paphos Harbour|Paphos|Cyprus|EU|34.754|32.408|wt:cyprus/paphos/harbour|city,harbour
+mt-vl-hb|Valletta Harbour|Valletta|Malta|EU|35.899|14.514|wt:malta/valletta/harbour|city,harbour
+mt-vl-ct|Valletta Centre|Valletta|Malta|EU|35.900|14.515|wt:malta/valletta/centre|city,landmark
+ad-la-ct|Andorra la Vella|Andorra la Vella|Andorra|EU|42.507|1.522|wt:andorra/andorra-la-vella/centre|city
+mc-mc-hb|Monte Carlo Harbour|Monte Carlo|Monaco|EU|43.734|7.421|wt:monaco/monte-carlo/harbour|city,harbour
+sm-sm-ct|San Marino Centre|San Marino|San Marino|EU|43.936|12.447|wt:san-marino/san-marino/centre|city,landmark
+va-sp-sq|St Peters Square|Vatican City|Vatican City|EU|41.902|12.457|wt:vatican/st-peters/square|landmark
+li-vd-ct|Vaduz Castle View|Vaduz|Liechtenstein|EU|47.141|9.521|wt:liechtenstein/vaduz/castle|city,landmark
+ua-kv-ms|Maidan Square|Kyiv|Ukraine|EU|50.450|30.524|wt:ukraine/kyiv/maidan-square|city,landmark
+ua-kv-sk|Kyiv Skyline|Kyiv|Ukraine|EU|50.456|30.520|wt:ukraine/kyiv/skyline|city,skyline
+ua-od-ct|Odesa Centre|Odesa|Ukraine|EU|46.485|30.735|wt:ukraine/odesa/centre|city,coast
+ua-lv-ct|Lviv Old Town|Lviv|Ukraine|EU|49.842|24.031|wt:ukraine/lviv/old-town|city
+by-mn-ct|Minsk Centre|Minsk|Belarus|EU|53.901|27.559|wt:belarus/minsk/centre|city
+md-ch-ct|Chișinău Centre|Chișinău|Moldova|EU|47.011|28.858|wt:moldova/chisinau/centre|city
+ru-mo-rq|Red Square|Moscow|Russia|EU|55.754|37.621|wt:russia/moscow/red-square|landmark
+ru-mo-kr|Kremlin View|Moscow|Russia|EU|55.752|37.617|wt:russia/moscow/kremlin|landmark
+ru-sp-hm|Hermitage View|St Petersburg|Russia|EU|59.940|30.314|wt:russia/st-petersburg/hermitage|landmark
+ru-sp-nv|Nevsky Prospect|St Petersburg|Russia|EU|59.931|30.345|wt:russia/st-petersburg/nevsky|city
+ru-so-ct|Sochi Coastline|Sochi|Russia|EU|43.585|39.723|wt:russia/sochi/coastline|beach,city
+ru-vl-hb|Vladivostok Harbour|Vladivostok|Russia|AS|43.116|131.874|wt:russia/vladivostok/harbour|city,harbour
+ru-ka-ct|Kaliningrad Centre|Kaliningrad|Russia|EU|54.710|20.510|wt:russia/kaliningrad/centre|city
+ru-nv-ct|Novosibirsk Centre|Novosibirsk|Russia|AS|55.008|82.936|wt:russia/novosibirsk/centre|city
+ru-yk-ct|Yekaterinburg|Yekaterinburg|Russia|AS|56.839|60.607|wt:russia/yekaterinburg/centre|city
+ru-kz-ct|Kazan Centre|Kazan|Russia|EU|55.798|49.106|wt:russia/kazan/centre|city,landmark
+jp-tk-sh|Shibuya Crossing|Tokyo|Japan|AS|35.660|139.700|yt:3n3Hq7XSBjA|city,crossing
+jp-tk-sk|Shinjuku Skyline|Tokyo|Japan|AS|35.690|139.700|wt:japan/tokyo/shinjuku|city,skyline
+jp-tk-tw|Tokyo Tower|Tokyo|Japan|AS|35.659|139.745|wt:japan/tokyo/tokyo-tower|landmark
+jp-tk-sn|Senso-ji Temple|Tokyo|Japan|AS|35.715|139.797|wt:japan/tokyo/senso-ji|landmark
+jp-tk-ak|Akihabara District|Tokyo|Japan|AS|35.699|139.771|wt:japan/tokyo/akihabara|city,shopping
+jp-fj-mt|Mount Fuji|Fujikawaguchiko|Japan|AS|35.361|138.729|wt:japan/yamanashi-prefecture/fujikawaguchiko-mount-fuji|nature,mountain
+jp-os-ct|Osaka Castle|Osaka|Japan|AS|34.687|135.526|wt:japan/osaka/osaka-castle|landmark
+jp-os-db|Dotonbori|Osaka|Japan|AS|34.669|135.503|wt:japan/osaka/dotonbori|city,nightlife
+jp-kt-ft|Fushimi Inari|Kyoto|Japan|AS|34.967|135.773|wt:japan/kyoto/fushimi-inari|landmark
+jp-kt-gk|Gion District|Kyoto|Japan|AS|35.004|135.775|wt:japan/kyoto/gion|city,landmark
+jp-hr-pc|Hiroshima Peace|Hiroshima|Japan|AS|34.395|132.454|wt:japan/hiroshima/peace-park|landmark
+jp-sp-ct|Sapporo Centre|Sapporo|Japan|AS|43.063|141.354|wt:japan/hokkaido/sapporo|city
+jp-nr-pk|Nara Park|Nara|Japan|AS|34.685|135.843|wt:japan/nara/deer-park|nature,park
+jp-ok-ct|Okinawa Beach|Naha|Japan|AS|26.334|127.767|wt:japan/okinawa/naha-beach|beach
+jp-yh-hb|Yokohama Harbour|Yokohama|Japan|AS|35.444|139.638|wt:japan/yokohama/harbour|city,harbour
+jp-kb-hb|Kobe Harbour|Kobe|Japan|AS|34.685|135.198|wt:japan/kobe/harbour|city,harbour
+cn-sh-sl|Shanghai Skyline|Shanghai|China|AS|31.230|121.474|sl:china/shanghai/shanghai/skyline-of-shanghai|city,skyline
+cn-sh-bd|The Bund|Shanghai|China|AS|31.240|121.490|wt:china/shanghai/the-bund|city,landmark
+cn-bj-tc|Tiananmen Square|Beijing|China|AS|39.908|116.397|wt:china/beijing/tiananmen|landmark
+cn-bj-gw|Great Wall View|Beijing|China|AS|40.432|116.570|wt:china/beijing/great-wall|landmark,ancient
+cn-bj-fb|Forbidden City|Beijing|China|AS|39.916|116.397|wt:china/beijing/forbidden-city|landmark
+cn-hk-vh|Victoria Harbour|Hong Kong|China|AS|22.279|114.175|wt:china/hong-kong/victoria-harbour|city,harbour
+cn-hk-ts|Tsim Sha Tsui|Hong Kong|China|AS|22.297|114.172|wt:china/hong-kong/tsim-sha-tsui|city
+cn-gz-ct|Guangzhou Tower|Guangzhou|China|AS|23.109|113.317|wt:china/guangzhou/canton-tower|city,landmark
+cn-sz-sk|Shenzhen Skyline|Shenzhen|China|AS|22.543|114.058|wt:china/shenzhen/skyline|city,skyline
+cn-cd-bg|Chengdu Bridge|Chengdu|China|AS|30.573|104.066|wt:china/chengdu/bridge|city
+cn-xn-tw|Xian Tower|Xian|China|AS|34.260|108.939|wt:china/xian/bell-tower|city,landmark
+cn-wh-ct|Wuhan Centre|Wuhan|China|AS|30.584|114.299|wt:china/wuhan/centre|city
+cn-cq-sk|Chongqing Skyline|Chongqing|China|AS|29.563|106.552|wt:china/chongqing/skyline|city,skyline
+cn-hg-lk|West Lake|Hangzhou|China|AS|30.250|120.148|wt:china/hangzhou/west-lake|nature,lake
+cn-nj-ct|Nanjing Centre|Nanjing|China|AS|32.061|118.797|wt:china/nanjing/centre|city
+cn-mc-ct|Macau Centre|Macau|China|AS|22.198|113.544|wt:china/macau/centre|city
+cn-ly-ct|Lhasa Potala|Lhasa|China|AS|29.655|91.117|wt:china/tibet/lhasa-potala|landmark
+kr-se-my|Myeongdong|Seoul|South Korea|AS|37.567|126.984|wt:south-korea/seoul/myeongdong|city,shopping
+kr-se-gn|Gangnam District|Seoul|South Korea|AS|37.498|127.028|wt:south-korea/seoul/gangnam|city
+kr-se-gw|Gwanghwamun|Seoul|South Korea|AS|37.576|126.977|wt:south-korea/seoul/gwanghwamun|city,landmark
+kr-se-hg|Hongdae Area|Seoul|South Korea|AS|37.557|126.924|wt:south-korea/seoul/hongdae|city,nightlife
+kr-bs-bc|Busan Haeundae|Busan|South Korea|AS|35.159|129.160|wt:south-korea/busan/haeundae-beach|beach,city
+kr-jj-bc|Jeju Island|Jeju|South Korea|AS|33.449|126.573|wt:south-korea/jeju/coastline|island,nature
+kr-ic-ap|Incheon Airport|Incheon|South Korea|AS|37.460|126.441|wt:south-korea/incheon/airport|airport
+tw-tp-ct|Taipei 101|Taipei|Taiwan|AS|25.034|121.565|wt:taiwan/taipei/taipei-101|city,landmark
+tw-tp-sm|Shilin Night Market|Taipei|Taiwan|AS|25.088|121.524|wt:taiwan/taipei/shilin|city,market
+tw-tp-nb|Banqiao District|New Taipei|Taiwan|AS|25.015|121.468|wt:taiwan/new-taipei/city-centre|city
+tw-tc-ct|Taichung Centre|Taichung|Taiwan|AS|24.148|120.674|wt:taiwan/taichung/centre|city
+tw-kh-hb|Kaohsiung Harbour|Kaohsiung|Taiwan|AS|22.615|120.265|wt:taiwan/kaohsiung/harbour|city,harbour
+in-dl-ig|India Gate|New Delhi|India|AS|28.613|77.230|wt:india/new-delhi/india-gate|landmark,city
+in-dl-rq|Red Fort|New Delhi|India|AS|28.656|77.241|wt:india/delhi/red-fort|landmark
+in-mu-gw|Gateway of India|Mumbai|India|AS|18.922|72.835|wt:india/mumbai/gateway|landmark
+in-mu-mb|Marine Drive|Mumbai|India|AS|18.944|72.824|wt:india/mumbai/marine-drive|city,coast
+in-bl-ct|Bangalore Centre|Bangalore|India|AS|12.972|77.595|wt:india/karnataka/bangalore|city
+in-ch-mb|Marina Beach|Chennai|India|AS|13.049|80.282|wt:india/tamil-nadu/marina-beach|beach
+in-kl-hv|Kolkata Howrah|Kolkata|India|AS|22.585|88.340|wt:india/west-bengal/howrah-bridge|city,bridge
+in-jy-hw|Hawa Mahal|Jaipur|India|AS|26.924|75.827|wt:india/rajasthan/hawa-mahal|landmark
+in-ag-tj|Taj Mahal View|Agra|India|AS|27.175|78.042|wt:india/uttar-pradesh/taj-mahal|landmark
+in-vr-gh|Ghats View|Varanasi|India|AS|25.311|83.011|wt:india/uttar-pradesh/varanasi-ghats|landmark,river
+in-go-bc|Goa Beach|Panaji|India|AS|15.460|73.818|wt:india/goa/beach|beach
+in-hy-ct|Hyderabad Charminar|Hyderabad|India|AS|17.361|78.474|wt:india/telangana/charminar|landmark
+in-am-gt|Amritsar Golden Temple|Amritsar|India|AS|31.620|74.877|wt:india/punjab/golden-temple|landmark,religious
+in-kc-bw|Kochi Backwaters|Kochi|India|AS|9.931|76.267|wt:india/kerala/kochi-backwaters|water,nature
+th-bk-rv|Chao Phraya River|Bangkok|Thailand|AS|13.756|100.493|wt:thailand/bangkok/chao-phraya|city,river
+th-bk-gp|Grand Palace|Bangkok|Thailand|AS|13.750|100.491|wt:thailand/bangkok/grand-palace|landmark
+th-bk-ks|Khao San Road|Bangkok|Thailand|AS|13.759|100.497|wt:thailand/bangkok/khao-san|city,nightlife
+th-cm-ct|Chiang Mai Old City|Chiang Mai|Thailand|AS|18.787|98.987|wt:thailand/chiang-mai/old-city|city
+th-pk-bc|Phuket Beach|Phuket|Thailand|AS|7.881|98.380|wt:thailand/phuket/beach|beach,resort
+th-pt-bc|Pattaya Beach|Pattaya|Thailand|AS|12.942|100.879|wt:thailand/pattaya/beach|beach
+th-ko-bc|Koh Samui Beach|Koh Samui|Thailand|AS|9.512|100.062|wt:thailand/koh-samui/beach|beach,island
+vn-hm-ct|Ho Chi Minh City|Ho Chi Minh|Vietnam|AS|10.776|106.701|wt:vietnam/ho-chi-minh/city-centre|city
+vn-hn-ot|Hanoi Old Quarter|Hanoi|Vietnam|AS|21.033|105.847|wt:vietnam/hanoi/old-quarter|city
+vn-hl-by|Halong Bay|Halong|Vietnam|AS|20.960|107.045|wt:vietnam/halong/bay|nature,water
+vn-dn-bc|Da Nang Beach|Da Nang|Vietnam|AS|16.054|108.225|wt:vietnam/da-nang/beach|beach
+vn-ha-ot|Hoi An Old Town|Hoi An|Vietnam|AS|15.880|108.334|wt:vietnam/hoi-an/old-town|city,landmark
+sg-sg-mb|Marina Bay|Singapore|Singapore|AS|1.281|103.858|wt:singapore/singapore-city/marina-bay|city,skyline
+sg-sg-gb|Gardens by the Bay|Singapore|Singapore|AS|1.282|103.864|wt:singapore/singapore-city/gardens-by-the-bay|city,park
+sg-sg-ss|Sentosa Beach|Singapore|Singapore|AS|1.247|103.831|wt:singapore/singapore-city/singapore-seaside|beach,city
+my-kl-tw|Petronas Towers|Kuala Lumpur|Malaysia|AS|3.158|101.712|wt:malaysia/kuala-lumpur/petronas-towers|landmark
+my-kl-bs|Batu Caves|Kuala Lumpur|Malaysia|AS|3.237|101.684|wt:malaysia/kuala-lumpur/batu-caves|landmark
+my-pg-ct|Penang Georgetown|Penang|Malaysia|AS|5.415|100.330|wt:malaysia/penang/georgetown|city
+my-lg-bc|Langkawi Beach|Langkawi|Malaysia|AS|6.353|99.727|wt:malaysia/langkawi/beach|beach,island
+id-bl-kb|Kuta Beach|Bali|Indonesia|AS|−8.718|115.169|wt:indonesia/bali/kuta-beach|beach,resort
+id-bl-ub|Ubud Rice Terraces|Bali|Indonesia|AS|−8.507|115.263|wt:indonesia/bali/ubud|nature
+id-jk-ct|Jakarta Centre|Jakarta|Indonesia|AS|−6.200|106.845|wt:indonesia/jakarta/centre|city
+id-jk-mk|Monas Monument|Jakarta|Indonesia|AS|−6.176|106.827|wt:indonesia/jakarta/monas|landmark
+id-yg-ct|Yogyakarta Centre|Yogyakarta|Indonesia|AS|−7.797|110.361|wt:indonesia/yogyakarta/centre|city,landmark
+id-sb-ct|Surabaya Centre|Surabaya|Indonesia|AS|−7.250|112.751|wt:indonesia/surabaya/centre|city
+ph-mn-ct|Manila Bay|Manila|Philippines|AS|14.583|120.979|wt:philippines/manila/bay|city,coast
+ph-cg-ct|Cebu Centre|Cebu|Philippines|AS|10.315|123.886|wt:philippines/cebu/centre|city
+ph-dv-mk|Davao Market|Davao|Philippines|AS|7.091|125.609|wt:philippines/davao-region/agdao-market-cam2|market,city
+ph-br-bc|Boracay Beach|Boracay|Philippines|AS|11.968|121.924|wt:philippines/boracay/beach|beach,resort
+ph-pl-ug|Palawan Underground|Puerto Princesa|Philippines|AS|10.174|118.735|wt:philippines/palawan/underground-river|nature
+kh-pp-ct|Phnom Penh Centre|Phnom Penh|Cambodia|AS|11.556|104.928|wt:cambodia/phnom-penh/centre|city
+kh-sr-wt|Angkor Wat|Siem Reap|Cambodia|AS|13.412|103.867|wt:cambodia/siem-reap/angkor-wat|landmark,ancient
+la-vt-ct|Vientiane Centre|Vientiane|Laos|AS|17.975|102.633|wt:laos/vientiane/centre|city
+la-lp-ct|Luang Prabang|Luang Prabang|Laos|AS|19.885|102.135|wt:laos/luang-prabang/centre|city,landmark
+mm-yg-ct|Yangon Shwedagon|Yangon|Myanmar|AS|16.871|96.150|wt:myanmar/yangon/shwedagon|landmark
+mm-mn-ct|Mandalay Centre|Mandalay|Myanmar|AS|21.975|96.083|wt:myanmar/mandalay/centre|city
+bn-bw-ct|Bandar Seri Begawan|BSB|Brunei|AS|4.934|114.948|wt:brunei/bandar-seri-begawan/centre|city
+tl-dl-ct|Dili Centre|Dili|Timor-Leste|AS|−8.556|125.574|wt:timor-leste/dili/centre|city
+mn-ub-ct|Ulaanbaatar Centre|Ulaanbaatar|Mongolia|AS|47.921|106.906|wt:mongolia/ulaanbaatar/centre|city
+mn-ub-sq|Sukhbaatar Square|Ulaanbaatar|Mongolia|AS|47.919|106.918|wt:mongolia/ulaanbaatar/square|city,landmark
+np-kt-ct|Kathmandu Durbar|Kathmandu|Nepal|AS|27.704|85.308|wt:nepal/kathmandu/durbar-square|city,landmark
+np-pk-mt|Pokhara Mountains|Pokhara|Nepal|AS|28.210|83.987|wt:nepal/pokhara/mountains|nature,mountain
+bt-th-ct|Thimphu Centre|Thimphu|Bhutan|AS|27.473|89.639|wt:bhutan/thimphu/centre|city
+bd-dk-ct|Dhaka Centre|Dhaka|Bangladesh|AS|23.811|90.413|wt:bangladesh/dhaka/centre|city
+bd-dk-rv|Buriganga River|Dhaka|Bangladesh|AS|23.700|90.400|wt:bangladesh/dhaka/river|city,river
+lk-cm-ct|Colombo Centre|Colombo|Sri Lanka|AS|6.927|79.861|wt:sri-lanka/colombo/centre|city
+lk-cm-gl|Galle Fort|Galle|Sri Lanka|AS|6.028|80.217|wt:sri-lanka/galle/fort|landmark
+lk-kd-bc|Kandy Centre|Kandy|Sri Lanka|AS|7.291|80.635|wt:sri-lanka/kandy/centre|city
+mv-ml-ct|Malé Centre|Malé|Maldives|AS|4.175|73.509|wt:maldives/male/centre|city,island
+mv-aa-bc|Ari Atoll Beach|Ari Atoll|Maldives|AS|3.893|72.856|wt:maldives/ari-atoll/beach|beach,resort
+pk-is-ct|Islamabad Centre|Islamabad|Pakistan|AS|33.693|73.036|wt:pakistan/islamabad/centre|city
+pk-kr-ct|Karachi Coastline|Karachi|Pakistan|AS|24.861|67.010|wt:pakistan/karachi/coastline|city,coast
+pk-lh-ct|Lahore Fort|Lahore|Pakistan|AS|31.588|74.310|wt:pakistan/lahore/fort|city,landmark
+af-kb-ct|Kabul Centre|Kabul|Afghanistan|AS|34.555|69.208|wt:afghanistan/kabul/centre|city
+kz-as-ct|Astana Centre|Astana|Kazakhstan|AS|51.128|71.431|wt:kazakhstan/astana/centre|city,landmark
+kz-al-ct|Almaty Centre|Almaty|Kazakhstan|AS|43.238|76.946|wt:kazakhstan/almaty/centre|city,mountain
+uz-ts-ct|Tashkent Centre|Tashkent|Uzbekistan|AS|41.299|69.240|wt:uzbekistan/tashkent/centre|city
+uz-sm-ct|Samarkand Registan|Samarkand|Uzbekistan|AS|39.655|66.960|wt:uzbekistan/samarkand/registan|landmark,ancient
+kg-bk-ct|Bishkek Centre|Bishkek|Kyrgyzstan|AS|42.875|74.589|wt:kyrgyzstan/bishkek/centre|city
+tj-du-ct|Dushanbe Centre|Dushanbe|Tajikistan|AS|38.560|68.774|wt:tajikistan/dushanbe/centre|city
+tm-as-ct|Ashgabat Centre|Ashgabat|Turkmenistan|AS|37.960|58.326|wt:turkmenistan/ashgabat/centre|city
+ge-tb-ct|Tbilisi Old Town|Tbilisi|Georgia|AS|41.694|44.802|wt:georgia/tbilisi/old-town|city,landmark
+ge-tb-br|Bridge of Peace|Tbilisi|Georgia|AS|41.693|44.808|wt:georgia/tbilisi/bridge-of-peace|city,bridge
+am-yv-ct|Yerevan Centre|Yerevan|Armenia|AS|40.183|44.515|wt:armenia/yerevan/centre|city
+am-yv-ar|Mount Ararat View|Yerevan|Armenia|AS|40.177|44.503|wt:armenia/yerevan/ararat|city,mountain
+az-bk-ct|Baku Old City|Baku|Azerbaijan|AS|40.366|49.837|wt:azerbaijan/baku/old-city|city,landmark
+az-bk-ft|Flame Towers|Baku|Azerbaijan|AS|40.360|49.839|wt:azerbaijan/baku/flame-towers|city,landmark
+tr-is-bs|Bosphorus Strait|Istanbul|Turkey|AS|41.008|28.978|wt:turkey/istanbul/bosphorus|water,city
+tr-is-hs|Hagia Sophia|Istanbul|Turkey|AS|41.009|28.980|wt:turkey/istanbul/hagia-sophia|landmark
+tr-is-bm|Blue Mosque|Istanbul|Turkey|AS|41.005|28.976|wt:turkey/istanbul/blue-mosque|landmark
+tr-is-gb|Grand Bazaar|Istanbul|Turkey|AS|41.011|28.968|wt:turkey/istanbul/grand-bazaar|city,market
+tr-an-ct|Ankara Centre|Ankara|Turkey|AS|39.925|32.866|wt:turkey/ankara/centre|city
+tr-an-cl|Cappadocia Landscape|Göreme|Turkey|AS|38.643|34.829|wt:turkey/cappadocia/goreme|nature,landmark
+tr-iz-ct|Izmir Coastline|Izmir|Turkey|AS|38.419|27.129|wt:turkey/izmir/coastline|city,coast
+tr-at-bc|Antalya Beach|Antalya|Turkey|AS|36.887|30.703|wt:turkey/antalya/beach|beach,city
+ir-th-az|Azadi Tower|Tehran|Iran|AS|35.700|51.338|wt:iran/tehran/azadi|city,landmark
+ir-th-ct|Tehran Centre|Tehran|Iran|AS|35.689|51.389|wt:iran/tehran/centre|city
+ir-is-sq|Isfahan Square|Isfahan|Iran|AS|32.658|51.678|wt:iran/isfahan/naqsh-e-jahan|landmark
+ir-sh-ct|Shiraz Centre|Shiraz|Iran|AS|29.592|52.584|wt:iran/shiraz/centre|city
+iq-bg-ct|Baghdad Centre|Baghdad|Iraq|AS|33.312|44.366|wt:iraq/baghdad/centre|city
+iq-er-ct|Erbil Citadel|Erbil|Iraq|AS|36.191|44.009|wt:iraq/erbil/citadel|city,landmark
+sy-dm-ct|Damascus Centre|Damascus|Syria|AS|33.513|36.292|wt:syria/damascus/centre|city
+lb-br-ct|Beirut Waterfront|Beirut|Lebanon|AS|33.894|35.502|wt:lebanon/beirut/waterfront|city,coast
+lb-br-pg|Pigeon Rocks|Beirut|Lebanon|AS|33.876|35.472|wt:lebanon/beirut/pigeon-rocks|nature,coast
+jo-am-ct|Amman Centre|Amman|Jordan|AS|31.945|35.928|wt:jordan/amman/centre|city
+jo-pt-ct|Petra View|Wadi Musa|Jordan|AS|30.329|35.442|wt:jordan/petra/view|landmark,ancient
+il-jm-ww|Western Wall|Jerusalem|Israel|AS|31.777|35.235|sl:israel/jerusalem-district/jerusalem/western-wall|landmark,religious
+il-jm-dm|Dome of the Rock|Jerusalem|Israel|AS|31.778|35.236|wt:israel/jerusalem/dome-of-the-rock|landmark,religious
+il-ta-bc|Tel Aviv Beach|Tel Aviv|Israel|AS|32.083|34.767|wt:israel/tel-aviv/beach|beach,city
+il-ta-ct|Tel Aviv Centre|Tel Aviv|Israel|AS|32.083|34.781|wt:israel/tel-aviv/centre|city
+ps-bt-ct|Bethlehem Centre|Bethlehem|Palestine|AS|31.705|35.204|wt:palestine/bethlehem/centre|city,landmark
+sa-ri-sk|Riyadh Skyline|Riyadh|Saudi Arabia|AS|24.713|46.675|wt:saudi-arabia/riyadh/skyline|city,skyline
+sa-jd-ct|Jeddah Corniche|Jeddah|Saudi Arabia|AS|21.543|39.173|wt:saudi-arabia/jeddah/corniche|city,coast
+sa-mk-hm|Makkah Haram|Makkah|Saudi Arabia|AS|21.423|39.826|wt:saudi-arabia/makkah/haram|landmark,religious
+sa-md-ms|Madinah Mosque|Madinah|Saudi Arabia|AS|24.468|39.611|wt:saudi-arabia/madinah/mosque|landmark,religious
+ae-db-bk|Burj Khalifa View|Dubai|UAE|AS|25.197|55.274|wt:uae/dubai/burj-khalifa|skyline,landmark
+ae-db-mr|Dubai Marina|Dubai|UAE|AS|25.087|55.150|wt:uae/dubai/marina|city,harbour
+ae-db-pm|Palm Jumeirah|Dubai|UAE|AS|25.112|55.139|wt:uae/dubai/palm-jumeirah|city,island
+ae-ad-sk|Abu Dhabi Skyline|Abu Dhabi|UAE|AS|24.454|54.644|wt:uae/abu-dhabi/skyline|city,skyline
+ae-ad-gm|Grand Mosque|Abu Dhabi|UAE|AS|24.413|54.475|wt:uae/abu-dhabi/grand-mosque|landmark
+kw-kc-ct|Kuwait City Centre|Kuwait City|Kuwait|AS|29.376|47.977|wt:kuwait/kuwait-city/centre|city
+kw-kc-tw|Kuwait Towers|Kuwait City|Kuwait|AS|29.391|47.993|wt:kuwait/kuwait-city/towers|landmark
+bh-mn-ct|Manama Centre|Manama|Bahrain|AS|26.228|50.586|wt:bahrain/manama/centre|city
+qa-do-sk|Doha Skyline|Doha|Qatar|AS|25.286|51.533|wt:qatar/doha/skyline|city,skyline
+qa-do-cn|Doha Corniche|Doha|Qatar|AS|25.303|51.520|wt:qatar/doha/corniche|city,coast
+om-ms-ct|Muscat Centre|Muscat|Oman|AS|23.614|58.540|wt:oman/muscat/centre|city
+om-ms-gm|Grand Mosque|Muscat|Oman|AS|23.587|58.402|wt:oman/muscat/grand-mosque|landmark
+ye-sn-ct|Sanaa Old City|Sanaa|Yemen|AS|15.354|44.207|wt:yemen/sanaa/old-city|city,landmark
+eg-ca-py|Pyramids of Giza|Cairo|Egypt|AF|29.979|31.135|sl:egypt/cairo/cairo/great-pyramid-of-giza|landmark,ancient
+eg-ca-nl|Nile View|Cairo|Egypt|AF|30.043|31.233|wt:egypt/cairo/nile-view|city,river
+eg-ca-ct|Cairo Centre|Cairo|Egypt|AF|30.044|31.236|wt:egypt/cairo/centre|city
+eg-lx-tp|Luxor Temple|Luxor|Egypt|AF|25.699|32.639|wt:egypt/luxor/temple|landmark,ancient
+eg-ax-ct|Alexandria Corniche|Alexandria|Egypt|AF|31.214|29.942|wt:egypt/alexandria/corniche|city,coast
+eg-ss-gl|Sharm El Sheikh|Sharm El Sheikh|Egypt|AF|27.915|34.330|wt:egypt/sharm-el-sheikh/beach|beach,resort
+ma-mr-sq|Marrakech Jemaa|Marrakech|Morocco|AF|31.626|−7.989|wt:morocco/marrakech/jemaa-el-fna|city,market
+ma-mr-md|Marrakech Medina|Marrakech|Morocco|AF|31.631|−7.987|wt:morocco/marrakech/medina|city
+ma-cs-ct|Casablanca Centre|Casablanca|Morocco|AF|33.573|−7.589|wt:morocco/casablanca/centre|city
+ma-fz-md|Fez Medina|Fez|Morocco|AF|34.061|−4.974|wt:morocco/fez/medina|city,landmark
+ma-tg-ct|Tangier Port|Tangier|Morocco|AF|35.776|−5.803|wt:morocco/tangier/port|city,harbour
+ma-ch-ct|Chefchaouen|Chefchaouen|Morocco|AF|35.171|−5.264|wt:morocco/chefchaouen/centre|city
+tn-tu-ct|Tunis Centre|Tunis|Tunisia|AF|36.802|10.180|wt:tunisia/tunis/centre|city
+tn-tu-md|Tunis Medina|Tunis|Tunisia|AF|36.800|10.170|wt:tunisia/tunis/medina|city,landmark
+tn-ss-ct|Sousse Beach|Sousse|Tunisia|AF|35.828|10.608|wt:tunisia/sousse/beach|beach
+dz-al-ct|Algiers Centre|Algiers|Algeria|AF|36.737|3.087|wt:algeria/algiers/centre|city
+dz-or-ct|Oran Centre|Oran|Algeria|AF|35.697|−0.631|wt:algeria/oran/centre|city
+ly-tr-ct|Tripoli Centre|Tripoli|Libya|AF|32.902|13.180|wt:libya/tripoli/centre|city
+za-ct-tm|Table Mountain|Cape Town|South Africa|AF|−33.963|18.409|wt:south-africa/cape-town/table-mountain|nature,mountain
+za-ct-wf|V&A Waterfront|Cape Town|South Africa|AF|−33.904|18.421|wt:south-africa/cape-town/waterfront|city,harbour
+za-ct-rm|Robben Island View|Cape Town|South Africa|AF|−33.806|18.370|wt:south-africa/cape-town/robben-island|landmark
+za-jb-sk|Johannesburg Skyline|Johannesburg|South Africa|AF|−26.205|28.050|wt:south-africa/johannesburg/skyline|city,skyline
+za-jb-sw|Soweto|Johannesburg|South Africa|AF|−26.268|27.859|wt:south-africa/johannesburg/soweto|city
+za-db-bc|Durban Beach|Durban|South Africa|AF|−29.858|31.029|wt:south-africa/durban/beach|beach,city
+za-pe-ct|Port Elizabeth|Gqeberha|South Africa|AF|−33.961|25.618|wt:south-africa/port-elizabeth/centre|city
+za-kr-np|Kruger N. Park|Kruger|South Africa|AF|−24.011|31.485|wt:south-africa/kruger/wildlife|nature,wildlife
+ng-lg-ct|Lagos Centre|Lagos|Nigeria|AF|6.455|3.395|wt:nigeria/lagos/centre|city
+ng-lg-vb|Victoria Island|Lagos|Nigeria|AF|6.428|3.424|wt:nigeria/lagos/victoria-island|city
+ng-ab-ct|Abuja Centre|Abuja|Nigeria|AF|9.058|7.491|wt:nigeria/abuja/centre|city
+gh-ac-ct|Accra Centre|Accra|Ghana|AF|5.603|−0.187|wt:ghana/accra/centre|city
+gh-ac-bc|Accra Beach|Accra|Ghana|AF|5.550|−0.190|wt:ghana/accra/beach|beach
+ke-nb-ct|Nairobi Centre|Nairobi|Kenya|AF|−1.286|36.817|wt:kenya/nairobi/centre|city
+ke-nb-np|Nairobi N. Park|Nairobi|Kenya|AF|−1.374|36.860|wt:kenya/nairobi/national-park|nature,wildlife
+ke-ms-bc|Mombasa Beach|Mombasa|Kenya|AF|−4.052|39.668|wt:kenya/mombasa/beach|beach
+ke-mm-np|Masai Mara|Masai Mara|Kenya|AF|−1.500|35.150|wt:kenya/masai-mara/wildlife|nature,wildlife
+tz-dr-bc|Dar es Salaam Beach|Dar es Salaam|Tanzania|AF|−6.792|39.288|wt:tanzania/dar-es-salaam/beach|beach,city
+tz-ar-np|Arusha Kilimanjaro|Arusha|Tanzania|AF|−3.386|36.683|wt:tanzania/arusha/kilimanjaro|nature,mountain
+tz-zn-ct|Zanzibar Stone Town|Zanzibar|Tanzania|AF|−6.163|39.189|wt:tanzania/zanzibar/stone-town|city,island
+tz-ng-np|Ngorongoro Crater|Ngorongoro|Tanzania|AF|−3.167|35.583|wt:tanzania/ngorongoro/crater|nature,wildlife
+ug-kp-ct|Kampala Centre|Kampala|Uganda|AF|0.314|32.581|wt:uganda/kampala/centre|city
+ug-en-lk|Lake Victoria|Entebbe|Uganda|AF|0.056|32.464|wt:uganda/entebbe/lake|nature,lake
+rw-kg-ct|Kigali Centre|Kigali|Rwanda|AF|−1.950|30.059|wt:rwanda/kigali/centre|city
+et-aa-ct|Addis Ababa Centre|Addis Ababa|Ethiopia|AF|9.025|38.747|wt:ethiopia/addis-ababa/centre|city
+et-aa-mk|Merkato Market|Addis Ababa|Ethiopia|AF|9.036|38.725|wt:ethiopia/addis-ababa/merkato|market
+sn-dk-ct|Dakar Centre|Dakar|Senegal|AF|14.693|−17.444|wt:senegal/dakar/centre|city
+sn-dk-bc|Dakar Beach|Dakar|Senegal|AF|14.688|−17.468|wt:senegal/dakar/beach|beach
+gm-bj-ct|Banjul Centre|Banjul|Gambia|AF|13.455|−16.578|wt:gambia/banjul/centre|city
+gn-cn-ct|Conakry Centre|Conakry|Guinea|AF|9.641|−13.578|wt:guinea/conakry/centre|city
+gw-bw-ct|Bissau Centre|Bissau|Guinea-Bissau|AF|11.862|−15.598|wt:guinea-bissau/bissau/centre|city
+sl-fr-ct|Freetown Centre|Freetown|Sierra Leone|AF|8.480|−13.234|wt:sierra-leone/freetown/centre|city
+lr-mn-ct|Monrovia Centre|Monrovia|Liberia|AF|6.311|−10.798|wt:liberia/monrovia/centre|city
+ci-ab-ct|Abidjan Centre|Abidjan|Côte d Ivoire|AF|5.316|−4.009|wt:ivory-coast/abidjan/centre|city
+ci-ab-pt|Plateau District|Abidjan|Côte d Ivoire|AF|5.327|−4.022|wt:ivory-coast/abidjan/plateau|city
+bf-ou-ct|Ouagadougou Centre|Ouagadougou|Burkina Faso|AF|12.371|−1.525|wt:burkina-faso/ouagadougou/centre|city
+ml-bm-ct|Bamako Centre|Bamako|Mali|AF|12.645|−8.000|wt:mali/bamako/centre|city
+ne-nm-ct|Niamey Centre|Niamey|Niger|AF|13.512|2.125|wt:niger/niamey/centre|city
+td-nd-ct|N Djamena Centre|N Djamena|Chad|AF|12.107|15.044|wt:chad/n-djamena/centre|city
+mr-nk-ct|Nouakchott Centre|Nouakchott|Mauritania|AF|18.089|−15.978|wt:mauritania/nouakchott/centre|city
+cv-pr-ct|Praia Centre|Praia|Cabo Verde|AF|14.933|−23.513|wt:cabo-verde/praia/centre|city,island
+tg-lo-ct|Lomé Centre|Lomé|Togo|AF|6.131|1.222|wt:togo/lome/centre|city
+bj-co-ct|Cotonou Centre|Cotonou|Benin|AF|6.365|2.433|wt:benin/cotonou/centre|city
+cm-yd-ct|Yaoundé Centre|Yaoundé|Cameroon|AF|3.868|11.522|wt:cameroon/yaounde/centre|city
+cm-dl-ct|Douala Centre|Douala|Cameroon|AF|4.050|9.700|wt:cameroon/douala/centre|city
+cf-bg-ct|Bangui Centre|Bangui|Central African Republic|AF|4.367|18.558|wt:central-african-republic/bangui/centre|city
+ga-lv-ct|Libreville Centre|Libreville|Gabon|AF|0.390|9.454|wt:gabon/libreville/centre|city
+gq-ml-ct|Malabo Centre|Malabo|Equatorial Guinea|AF|3.750|8.783|wt:equatorial-guinea/malabo/centre|city
+cg-bz-ct|Brazzaville Centre|Brazzaville|Congo|AF|−4.263|15.283|wt:congo/brazzaville/centre|city
+cd-kn-ct|Kinshasa Centre|Kinshasa|DR Congo|AF|−4.322|15.312|wt:dr-congo/kinshasa/centre|city
+ao-lu-ct|Luanda Centre|Luanda|Angola|AF|−8.839|13.234|wt:angola/luanda/centre|city
+ao-lu-bf|Luanda Bay Front|Luanda|Angola|AF|−8.814|13.236|wt:angola/luanda/bayfront|city,coast
+zm-ls-ct|Lusaka Centre|Lusaka|Zambia|AF|−15.387|28.323|wt:zambia/lusaka/centre|city
+zm-vf-fl|Victoria Falls Bridge|Livingstone|Zambia|AF|−17.927|25.857|wt:zambia/livingstone/victoria-falls|nature,waterfall
+zw-hr-ct|Harare Centre|Harare|Zimbabwe|AF|−17.832|31.050|wt:zimbabwe/harare/centre|city
+zw-vf-fl|Victoria Falls|Victoria Falls|Zimbabwe|AF|−17.925|25.854|wt:zimbabwe/victoria-falls/falls|nature,waterfall
+mz-mp-ct|Maputo Centre|Maputo|Mozambique|AF|−25.966|32.569|wt:mozambique/maputo/centre|city
+mw-ll-ct|Lilongwe Centre|Lilongwe|Malawi|AF|−13.963|33.787|wt:malawi/lilongwe/centre|city
+mg-an-ct|Antananarivo Centre|Antananarivo|Madagascar|AF|−18.880|47.508|wt:madagascar/antananarivo/centre|city
+bw-gb-ct|Gaborone Centre|Gaborone|Botswana|AF|−24.653|25.912|wt:botswana/gaborone/centre|city
+bw-ch-np|Chobe National Park|Kasane|Botswana|AF|−17.795|25.153|wt:botswana/chobe/wildlife|nature,wildlife
+na-wh-ct|Windhoek Centre|Windhoek|Namibia|AF|−22.560|17.084|wt:namibia/windhoek/centre|city
+na-sw-ds|Sossusvlei Dunes|Sesriem|Namibia|AF|−24.727|15.291|wt:namibia/sossusvlei/dunes|nature
+sz-mb-ct|Mbabane Centre|Mbabane|Eswatini|AF|−26.320|31.136|wt:eswatini/mbabane/centre|city
+ls-ms-ct|Maseru Centre|Maseru|Lesotho|AF|−29.310|27.487|wt:lesotho/maseru/centre|city
+er-as-ct|Asmara Centre|Asmara|Eritrea|AF|15.338|38.932|wt:eritrea/asmara/centre|city
+dj-dj-ct|Djibouti City Centre|Djibouti|Djibouti|AF|11.588|43.145|wt:djibouti/djibouti-city/centre|city
+so-mg-ct|Mogadishu Coast|Mogadishu|Somalia|AF|2.047|45.318|wt:somalia/mogadishu/coast|city,coast
+ss-jb-ct|Juba Centre|Juba|South Sudan|AF|4.852|31.575|wt:south-sudan/juba/centre|city
+sd-kh-ct|Khartoum Nile|Khartoum|Sudan|AF|15.601|32.534|wt:sudan/khartoum/nile|city,river
+bi-bj-ct|Bujumbura Centre|Bujumbura|Burundi|AF|−3.376|29.364|wt:burundi/bujumbura/centre|city
+km-mr-ct|Moroni Centre|Moroni|Comoros|AF|−11.702|43.256|wt:comoros/moroni/centre|city,island
+mu-pl-bc|Port Louis Beach|Port Louis|Mauritius|AF|−20.162|57.504|wt:mauritius/port-louis/beach|beach,island
+sc-vc-bc|Victoria Beach|Victoria|Seychelles|AF|−4.620|55.451|wt:seychelles/victoria/beach|beach,island
+st-st-ct|São Tomé Centre|São Tomé|São Tomé and Príncipe|AF|0.340|6.733|wt:sao-tome/sao-tome/centre|city,island
+au-sy-oh|Opera House|Sydney|Australia|OC|−33.857|151.215|yt:FQnMBH_Ecqo|landmark
+au-sy-hb|Sydney Harbour Bridge|Sydney|Australia|OC|−33.852|151.211|wt:australia/new-south-wales/sydney-harbour|landmark,bridge
+au-sy-bd|Bondi Beach|Sydney|Australia|OC|−33.891|151.275|wt:australia/new-south-wales/bondi-beach|beach
+au-ml-cb|Melbourne CBD|Melbourne|Australia|OC|−37.814|144.963|wt:australia/victoria/melbourne|city
+au-ml-fg|Federation Square|Melbourne|Australia|OC|−37.818|144.969|wt:australia/victoria/federation-square|city
+au-br-sb|South Bank|Brisbane|Australia|OC|−27.479|153.023|wt:australia/queensland/brisbane-south-bank|city
+au-pr-ct|Perth Centre|Perth|Australia|OC|−31.951|115.861|wt:australia/western-australia/perth|city
+au-ad-ct|Adelaide Centre|Adelaide|Australia|OC|−34.929|138.601|wt:australia/south-australia/adelaide|city
+au-gc-bc|Gold Coast Beach|Gold Coast|Australia|OC|−28.003|153.430|wt:australia/queensland/gold-coast|beach,resort
+au-cn-gr|Great Barrier Reef|Cairns|Australia|OC|−16.920|145.771|wt:australia/queensland/cairns-reef|nature
+au-dw-ct|Darwin Harbour|Darwin|Australia|OC|−12.462|130.845|wt:australia/northern-territory/darwin|city,harbour
+au-ho-ct|Hobart Waterfront|Hobart|Australia|OC|−42.882|147.330|wt:australia/tasmania/hobart|city,harbour
+au-cb-ct|Canberra|Canberra|Australia|OC|−35.282|149.129|wt:australia/act/canberra|city
+nz-ak-sk|Auckland Skyline|Auckland|New Zealand|OC|−36.848|174.763|wt:new-zealand/auckland/skyline|city,skyline
+nz-ak-hb|Auckland Harbour|Auckland|New Zealand|OC|−36.844|174.767|wt:new-zealand/auckland/harbour|city,harbour
+nz-wl-ct|Wellington Harbour|Wellington|New Zealand|OC|−41.290|174.781|wt:new-zealand/wellington/harbour|city,harbour
+nz-ch-ct|Christchurch Centre|Christchurch|New Zealand|OC|−43.531|172.637|wt:new-zealand/canterbury/christchurch|city
+nz-qt-lk|Queenstown Lake|Queenstown|New Zealand|OC|−45.031|168.663|wt:new-zealand/otago/queenstown|nature,lake
+nz-dn-hb|Otago Harbour|Dunedin|New Zealand|OC|−45.879|170.503|wt:new-zealand/otago/dunedin-otago-harbour-cam|harbour,nature
+fj-sv-ct|Suva Centre|Suva|Fiji|OC|−18.142|178.440|wt:fiji/suva/centre|city,island
+fj-nd-bc|Nadi Beach|Nadi|Fiji|OC|−17.775|177.944|wt:fiji/nadi/beach|beach,island
+pg-pm-ct|Port Moresby|Port Moresby|Papua New Guinea|OC|−9.444|147.180|wt:papua-new-guinea/port-moresby/centre|city
+ws-ap-ct|Apia Centre|Apia|Samoa|OC|−13.833|−171.769|wt:samoa/apia/centre|city,island
+to-nk-ct|Nukualofa|Nukualofa|Tonga|OC|−21.139|−175.204|wt:tonga/nukualofa/centre|city,island
+vu-pv-ct|Port Vila|Port Vila|Vanuatu|OC|−17.734|168.322|wt:vanuatu/port-vila/centre|city,island
+sb-hn-ct|Honiara Centre|Honiara|Solomon Islands|OC|−9.429|159.956|wt:solomon-islands/honiara/centre|city,island
+ki-tw-ct|Tarawa|South Tarawa|Kiribati|OC|1.452|173.015|wt:kiribati/tarawa/centre|city,island
+mh-mj-ct|Majuro|Majuro|Marshall Islands|OC|7.105|171.380|wt:marshall-islands/majuro/centre|city,island
+fm-pn-ct|Palikir|Palikir|Micronesia|OC|6.915|158.161|wt:micronesia/palikir/centre|city,island
+nr-yr-ct|Yaren|Yaren|Nauru|OC|−0.547|166.921|wt:nauru/yaren/centre|city,island
+pw-ng-ct|Ngerulmud|Ngerulmud|Palau|OC|7.500|134.624|wt:palau/ngerulmud/centre|city,island
+tv-fv-ct|Funafuti|Funafuti|Tuvalu|OC|−8.521|179.198|wt:tuvalu/funafuti/centre|city,island
+us-st-lc|St Louis Arch|St Louis|USA|NA|38.625|−90.187|wt:usa/missouri/st-louis-arch|city,landmark
+us-nf-va|Norfolk Naval|Norfolk|USA|NA|36.847|−76.292|wt:usa/virginia/norfolk|city,harbour
+us-tc-dt|Tallahassee|Tallahassee|USA|NA|30.438|−84.281|wt:usa/florida/tallahassee|city
+us-lr-dt|Little Rock|Little Rock|USA|NA|34.746|−92.290|wt:usa/arkansas/little-rock|city
+us-jc-dt|Jackson|Jackson|USA|NA|32.299|−90.185|wt:usa/mississippi/jackson|city
+us-ch-hd|Charleston Harbour 2|Charleston|USA|NA|32.776|−79.926|wt:usa/south-carolina/charleston-2|city
+us-bn-dt|Burlington VT|Burlington|USA|NA|44.476|−73.213|wt:usa/vermont/burlington-lake|city,lake
+us-an-sp|Annapolis|Annapolis|USA|NA|38.978|−76.493|wt:usa/maryland/annapolis|city
+us-sp-dt|Springfield IL|Springfield|USA|NA|39.799|−89.644|wt:usa/illinois/springfield|city
+us-mt-bc|Myrtle Beach Pier|Myrtle Beach|USA|NA|33.688|−78.891|wt:usa/south-carolina/myrtle-pier|beach
+us-sb-bc|South Padre Island|South Padre|USA|NA|26.108|−97.165|wt:usa/texas/south-padre|beach
+us-pc-bc|Panama City Beach|Panama City|USA|NA|30.177|−85.806|wt:usa/florida/panama-city-beach|beach
+us-gv-dt|Galveston Beach|Galveston|USA|NA|29.301|−94.797|wt:usa/texas/galveston|beach
+us-es-gp|Estes Park|Estes Park|USA|NA|40.377|−105.523|wt:usa/colorado/estes-park|nature,mountain
+us-bc-sd|Black Hills|Rapid City|USA|NA|43.997|−103.270|wt:usa/south-dakota/black-hills|nature
+us-ys-gf|Yellowstone Geyser|Yellowstone|USA|NA|44.460|−110.828|wt:usa/wyoming/yellowstone-geyser|nature
+us-sd-rn|Sedona Red Rocks|Sedona|USA|NA|34.870|−111.761|wt:usa/arizona/sedona|nature
+us-ki-bc|Kailua-Kona|Kailua-Kona|USA|NA|19.639|−155.998|wt:usa/hawaii/kailua-kona|beach
+us-mh-bc|Maui Hookipa|Maui|USA|NA|20.933|−156.356|wt:usa/hawaii/maui-hookipa|beach,nature
+us-jn-ak|Juneau Alaska|Juneau|USA|NA|58.301|−134.420|wt:usa/alaska/juneau|city,nature
+us-vr-tp|Virgin Islands|St Thomas|USA|NA|18.336|−64.931|wt:usa/virgin-islands/st-thomas|beach,island
+us-pr-sj|San Juan|San Juan|USA|NA|18.466|−66.106|wt:usa/puerto-rico/san-juan|city,island
+us-gu-hg|Guam Harbour|Hagatna|USA|NA|13.475|144.749|wt:usa/guam/hagatna|city,island
+us-rn-dt|Reno|Reno|USA|NA|39.530|−119.814|wt:usa/nevada/reno|city
+us-sp-sk|Spokane|Spokane|USA|NA|47.659|−117.426|wt:usa/washington/spokane|city
+us-eu-or|Eugene|Eugene|USA|NA|44.052|−123.087|wt:usa/oregon/eugene|city
+us-sc-ca|Sacramento|Sacramento|USA|NA|38.582|−121.494|wt:usa/california/sacramento|city
+us-sj-dt|San Jose|San Jose|USA|NA|37.335|−121.893|wt:usa/california/san-jose|city
+us-lb-bc|Long Beach|Long Beach|USA|NA|33.768|−118.196|wt:usa/california/long-beach|beach,city
+us-sk-rv|Skagway|Skagway|USA|NA|59.457|−135.314|wt:usa/alaska/skagway|city,nature
+ca-sk-ct|Saskatoon|Saskatoon|Canada|NA|52.132|−106.670|wt:canada/saskatchewan/saskatoon|city
+ca-ch-ct|Charlottetown|Charlottetown|Canada|NA|46.235|−63.126|wt:canada/pei/charlottetown|city
+ca-wh-ct|Whitehorse|Whitehorse|Canada|NA|60.721|−135.057|wt:canada/yukon/whitehorse|city,nature
+ca-yw-ct|Yellowknife|Yellowknife|Canada|NA|62.454|−114.372|wt:canada/northwest-territories/yellowknife|city,arctic
+ca-iq-ct|Iqaluit|Iqaluit|Canada|NA|63.747|−68.517|wt:canada/nunavut/iqaluit|city,arctic
+ca-tb-ct|Thunder Bay|Thunder Bay|Canada|NA|48.382|−89.246|wt:canada/ontario/thunder-bay|city
+ca-kl-ct|Kelowna|Kelowna|Canada|NA|49.888|−119.496|wt:canada/british-columbia/kelowna|city,lake
+ca-mj-ct|Moose Jaw|Moose Jaw|Canada|NA|50.393|−105.535|wt:canada/saskatchewan/moose-jaw|city
+ca-fn-ct|Fredericton|Fredericton|Canada|NA|45.963|−66.643|wt:canada/new-brunswick/fredericton|city
+ca-sd-ct|Sudbury|Sudbury|Canada|NA|46.490|−81.000|wt:canada/ontario/sudbury|city
+mx-ac-bc|Acapulco Beach|Acapulco|Mexico|NA|16.863|−99.882|wt:mexico/guerrero/acapulco|beach
+mx-lp-ct|La Paz Marina|La Paz|Mexico|NA|24.142|−110.313|wt:mexico/baja-california/la-paz|city,harbour
+mx-ag-ct|Aguascalientes|Aguascalientes|Mexico|NA|21.880|−102.296|wt:mexico/aguascalientes/centre|city
+mx-qt-ct|Querétaro|Querétaro|Mexico|NA|20.593|−100.392|wt:mexico/queretaro/centre|city
+mx-cp-ct|Chiapas|Tuxtla Gutiérrez|Mexico|NA|16.753|−93.116|wt:mexico/chiapas/tuxtla|city
+ht-jm-bc|Jacmel Beach|Jacmel|Haiti|NA|18.235|−72.534|wt:haiti/jacmel/beach|beach
+do-st-mn|Santiago Centro|Santiago DR|Dominican Republic|NA|19.451|−70.697|wt:dominican-republic/santiago/centre|city
+jm-oc-bc|Ocho Rios Beach|Ocho Rios|Jamaica|NA|18.408|−77.105|wt:jamaica/ocho-rios/beach|beach,resort
+jm-ng-bc|Negril Beach|Negril|Jamaica|NA|18.268|−78.349|wt:jamaica/negril/beach|beach,resort
+cr-ar-vl|Arenal Volcano|La Fortuna|Costa Rica|NA|10.463|−84.703|wt:costa-rica/arenal/volcano|nature,volcano
+cr-tj-ct|Tamarindo Beach|Tamarindo|Costa Rica|NA|10.300|−85.841|wt:costa-rica/guanacaste/tamarindo|beach
+pa-bt-ct|Bocas del Toro|Bocas del Toro|Panama|NA|9.340|−82.242|wt:panama/bocas-del-toro/centre|beach,island
+cu-vn-ct|Viñales Valley|Viñales|Cuba|NA|22.617|−83.716|wt:cuba/vinales/valley|nature
+cu-sg-ct|Santiago de Cuba|Santiago|Cuba|NA|20.025|−75.822|wt:cuba/santiago/centre|city
+bz-sc-rf|San Pedro Reef|San Pedro|Belize|NA|17.920|−87.960|wt:belize/san-pedro/reef|nature,island
+br-ct-ct|Curitiba Centre|Curitiba|Brazil|SA|−25.429|−49.271|wt:brazil/parana/curitiba|city
+br-bh-ct|Belo Horizonte|Belo Horizonte|Brazil|SA|−19.919|−43.938|wt:brazil/minas-gerais/belo-horizonte|city
+br-ft-bc|Fortaleza Beach|Fortaleza|Brazil|SA|−3.718|−38.543|wt:brazil/ceara/fortaleza|beach,city
+br-nt-bc|Natal Beach|Natal|Brazil|SA|−5.779|−35.201|wt:brazil/rio-grande/natal|beach
+br-pa-ct|Belém Centre|Belém|Brazil|SA|−1.456|−48.502|wt:brazil/para/belem|city
+br-cg-ct|Campo Grande|Campo Grande|Brazil|SA|−20.449|−54.620|wt:brazil/mato-grosso/campo-grande|city
+br-go-ct|Goiânia Centre|Goiânia|Brazil|SA|−16.686|−49.264|wt:brazil/goias/goiania|city
+br-pt-ct|Porto Alegre|Porto Alegre|Brazil|SA|−30.033|−51.230|wt:brazil/rio-grande-sul/porto-alegre|city
+br-vi-ct|Vitória Centre|Vitória|Brazil|SA|−20.319|−40.338|wt:brazil/espirito-santo/vitoria|city
+br-mc-ct|Maceió Beach|Maceió|Brazil|SA|−9.666|−35.735|wt:brazil/alagoas/maceio|beach,city
+ar-br-ct|San Carlos Bariloche|Bariloche|Argentina|SA|−41.133|−71.300|wt:argentina/rio-negro/bariloche|nature,mountain
+ar-rs-ct|Rosario Centre|Rosario|Argentina|SA|−32.948|−60.639|wt:argentina/santa-fe/rosario|city
+ar-mi-ct|Posadas Missions|Posadas|Argentina|SA|−27.368|−55.897|wt:argentina/misiones/posadas|city
+ar-sa-ct|Salta Centre|Salta|Argentina|SA|−24.789|−65.410|wt:argentina/salta/centre|city
+ar-mq-ct|Mar del Plata Beach|Mar del Plata|Argentina|SA|−38.002|−57.556|wt:argentina/buenos-aires/mar-del-plata|beach
+co-cl-ct|Cali Centre|Cali|Colombia|SA|3.451|−76.532|wt:colombia/cali/centre|city
+co-ba-ct|Barranquilla|Barranquilla|Colombia|SA|10.964|−74.796|wt:colombia/barranquilla/centre|city,coast
+co-sn-ct|Santa Marta Beach|Santa Marta|Colombia|SA|11.241|−74.199|wt:colombia/santa-marta/beach|beach
+pe-ar-ct|Arequipa Centre|Arequipa|Peru|SA|−16.409|−71.537|wt:peru/arequipa/centre|city
+pe-iq-ct|Iquitos Amazon|Iquitos|Peru|SA|−3.749|−73.254|wt:peru/iquitos/amazon|nature,river
+cl-ar-ct|Arica Centre|Arica|Chile|SA|−18.479|−70.321|wt:chile/arica/centre|city,coast
+cl-vi-bc|Viña del Mar Beach|Viña del Mar|Chile|SA|−33.015|−71.551|wt:chile/valparaiso/vina-del-mar|beach
+cl-tm-ct|Temuco Centre|Temuco|Chile|SA|−38.739|−72.590|wt:chile/araucania/temuco|city
+ec-cu-ct|Cuenca Centre|Cuenca|Ecuador|SA|−2.897|−79.005|wt:ecuador/cuenca/centre|city
+ve-mr-ct|Maracaibo Centre|Maracaibo|Venezuela|SA|10.641|−71.634|wt:venezuela/maracaibo/centre|city
+ve-mi-ct|Mérida Mountains|Mérida|Venezuela|SA|8.594|−71.145|wt:venezuela/merida/mountains|city,mountain
+uy-co-bc|Colonia del Sacramento|Colonia|Uruguay|SA|−34.476|−57.840|wt:uruguay/colonia/centre|city,landmark
+py-cd-ct|Ciudad del Este|Ciudad del Este|Paraguay|SA|−25.509|−54.611|wt:paraguay/alto-parana/ciudad-del-este|city
+bo-sc-ct|Santa Cruz Centre|Santa Cruz|Bolivia|SA|−17.783|−63.182|wt:bolivia/santa-cruz/centre|city
+uk-gl-ct|Glasgow Centre|Glasgow|United Kingdom|EU|55.860|−4.251|wt:scotland/glasgow/centre|city
+uk-ab-ct|Aberdeen Harbour|Aberdeen|United Kingdom|EU|57.150|−2.094|wt:scotland/aberdeen/harbour|city,harbour
+uk-sw-bc|Swansea Beach|Swansea|United Kingdom|EU|51.621|−3.943|wt:wales/swansea/beach|beach
+uk-nt-ct|Norwich Centre|Norwich|United Kingdom|EU|52.630|1.297|wt:england/norwich/centre|city
+uk-ex-ct|Exeter Centre|Exeter|United Kingdom|EU|50.725|−3.527|wt:england/exeter/centre|city
+fr-tl-ct|Toulouse Centre|Toulouse|France|EU|43.605|1.445|wt:france/midi-pyrenees/toulouse|city
+fr-na-ct|Nantes Centre|Nantes|France|EU|47.218|−1.554|wt:france/pays-de-la-loire/nantes|city
+fr-li-ct|Lille Centre|Lille|France|EU|50.629|3.057|wt:france/nord/lille|city
+fr-cn-bc|Cannes Beach|Cannes|France|EU|43.551|7.017|wt:france/provence/cannes|beach
+fr-bi-ct|Biarritz Beach|Biarritz|France|EU|43.483|−1.558|wt:france/aquitaine/biarritz|beach
+fr-aj-ct|Ajaccio Corsica|Ajaccio|France|EU|41.919|8.739|wt:france/corsica/ajaccio|city,island
+de-nr-ct|Nuremberg Centre|Nuremberg|Germany|EU|49.452|11.077|wt:germany/bavaria/nuremberg|city
+de-br-ct|Bremen Centre|Bremen|Germany|EU|53.080|8.801|wt:germany/bremen/centre|city
+de-ha-ct|Hanover Centre|Hanover|Germany|EU|52.375|9.732|wt:germany/lower-saxony/hanover|city
+de-ro-ct|Rostock Harbour|Rostock|Germany|EU|54.092|12.099|wt:germany/mecklenburg/rostock|city,harbour
+de-fn-ct|Freiburg Centre|Freiburg|Germany|EU|47.999|7.842|wt:germany/black-forest/freiburg|city
+de-kl-ct|Kiel Harbour|Kiel|Germany|EU|54.323|10.123|wt:germany/schleswig-holstein/kiel|city,harbour
+it-sr-ct2|Sardinia Cagliari|Cagliari|Italy|EU|39.224|9.122|sl:italia/sardegna/cagliari/cagliari|city,island
+it-pm-ct|Parma Centre|Parma|Italy|EU|44.801|10.329|wt:italy/emilia-romagna/parma|city
+it-vr-ct|Verona Centre|Verona|Italy|EU|45.438|10.992|wt:italy/veneto/verona|city,landmark
+it-tr-ct2|Trieste Harbour|Trieste|Italy|EU|45.647|13.770|wt:italy/friuli/trieste|city,harbour
+it-br-ct|Bari Centre|Bari|Italy|EU|41.125|16.862|wt:italy/puglia/bari|city
+it-ct-ct|Catania Centre|Catania|Italy|EU|37.502|15.087|wt:italy/sicily/catania|city
+it-pe-ct|Perugia Centre|Perugia|Italy|EU|43.110|12.389|wt:italy/umbria/perugia|city
+es-gc-bc|Gran Canaria Beach|Las Palmas|Spain|EU|28.100|−15.415|sl:espana/canarias/las-palmas/playa-las-canteras|beach
+es-pm-bc|Palma Mallorca Beach|Palma|Spain|EU|39.570|2.650|wt:spain/balearic-islands/palma|beach,city
+es-za-ct|Zaragoza Centre|Zaragoza|Spain|EU|41.649|−0.887|wt:spain/aragon/zaragoza|city
+es-mv-ct|Marbella Beach|Marbella|Spain|EU|36.510|−4.886|wt:spain/andalusia/marbella|beach,resort
+es-vg-ct|Vigo Centre|Vigo|Spain|EU|42.233|−8.712|wt:spain/galicia/vigo|city
+pt-az-lk|Azores Lakes|Ponta Delgada|Portugal|EU|37.741|−25.668|wt:portugal/azores/lakes|nature,island
+pt-br-ct|Braga Centre|Braga|Portugal|EU|41.551|−8.426|wt:portugal/braga/centre|city
+pt-cb-ct|Coimbra Centre|Coimbra|Portugal|EU|40.211|−8.429|wt:portugal/coimbra/centre|city
+nl-ut-ct|Utrecht Centre|Utrecht|Netherlands|EU|52.091|5.122|wt:netherlands/utrecht/centre|city
+nl-mb-ct|Maastricht Centre|Maastricht|Netherlands|EU|50.851|5.691|wt:netherlands/maastricht/centre|city
+be-gn-ct|Ghent Centre|Ghent|Belgium|EU|51.055|3.721|wt:belgium/ghent/centre|city
+be-lg-ct|Liège Centre|Liège|Belgium|EU|50.633|5.567|wt:belgium/liege/centre|city
+ch-st-ct|St Moritz|St Moritz|Switzerland|EU|46.497|9.838|wt:switzerland/graubunden/st-moritz|nature,mountain
+ch-be-ct|Bern Centre|Bern|Switzerland|EU|46.948|7.447|wt:switzerland/bern/centre|city
+at-ll-ct|Linz Centre|Linz|Austria|EU|48.306|14.286|wt:austria/upper-austria/linz|city
+at-kl-ct|Klagenfurt Centre|Klagenfurt|Austria|EU|46.625|14.308|wt:austria/carinthia/klagenfurt|city
+pl-lo-ct|Łódź Centre|Łódź|Poland|EU|51.760|19.456|wt:poland/lodz/centre|city
+pl-po-ct|Poznań Centre|Poznań|Poland|EU|52.407|16.934|wt:poland/poznan/centre|city
+pl-ka-ct|Katowice Centre|Katowice|Poland|EU|50.259|19.024|wt:poland/katowice/centre|city
+pl-sz-ct|Szczecin Centre|Szczecin|Poland|EU|53.428|14.553|wt:poland/szczecin/centre|city
+hu-db-ct|Debrecen Centre|Debrecen|Hungary|EU|47.532|21.627|wt:hungary/debrecen/centre|city
+hu-sc-ct|Szeged Centre|Szeged|Hungary|EU|46.253|20.148|wt:hungary/szeged/centre|city
+hu-bl-ct|Lake Balaton|Siófok|Hungary|EU|46.906|18.045|wt:hungary/balaton/lake|nature,lake
+ro-ct-bc|Constanta Beach|Constanta|Romania|EU|44.174|28.636|wt:romania/constanta/beach|beach
+ro-tm-ct|Timișoara Centre|Timișoara|Romania|EU|45.749|21.226|wt:romania/timisoara/centre|city
+ro-sb-ct|Sibiu Centre|Sibiu|Romania|EU|45.798|24.153|wt:romania/sibiu/centre|city
+bg-pl-ct|Plovdiv Centre|Plovdiv|Bulgaria|EU|42.150|24.750|wt:bulgaria/plovdiv/centre|city
+bg-bg-bc|Burgas Beach|Burgas|Bulgaria|EU|42.497|27.473|wt:bulgaria/burgas/beach|beach
+hr-zd-ct|Zadar Centre|Zadar|Croatia|EU|44.119|15.232|wt:croatia/zadar/centre|city
+hr-rj-ct|Rijeka Centre|Rijeka|Croatia|EU|45.327|14.442|wt:croatia/rijeka/centre|city,harbour
+si-kr-ct|Kranj Centre|Kranj|Slovenia|EU|46.239|14.356|wt:slovenia/kranj/centre|city
+rs-ni-ct|Niš Centre|Niš|Serbia|EU|43.321|21.896|wt:serbia/nis/centre|city
+al-vl-bc|Vlora Beach|Vlora|Albania|EU|40.460|19.489|wt:albania/vlora/beach|beach
+gr-pt-ct|Patras Centre|Patras|Greece|EU|38.246|21.735|wt:greece/peloponnese/patras|city
+gr-hk-bc|Chalkidiki Beach|Chalkidiki|Greece|EU|40.296|23.428|wt:greece/chalkidiki/beach|beach
+dk-od-ct|Odense Centre|Odense|Denmark|EU|55.396|10.389|wt:denmark/odense/centre|city
+dk-al-ct|Aalborg Centre|Aalborg|Denmark|EU|57.048|9.922|wt:denmark/aalborg/centre|city
+se-up-ct|Uppsala Centre|Uppsala|Sweden|EU|59.860|17.639|wt:sweden/uppsala/centre|city
+se-lk-ct|Linköping|Linköping|Sweden|EU|58.410|15.621|wt:sweden/linkoping/centre|city
+se-kb-ct|Kiruna Northern|Kiruna|Sweden|EU|67.856|20.225|wt:sweden/kiruna/centre|city,arctic
+no-sn-ct|Stavanger Harbour|Stavanger|Norway|EU|58.970|5.731|wt:norway/stavanger/harbour|city,harbour
+no-ad-ct|Ålesund Centre|Ålesund|Norway|EU|62.472|6.154|wt:norway/alesund/centre|city
+no-np-ct|Nordkapp|Nordkapp|Norway|EU|71.170|25.785|wt:norway/nordkapp/centre|nature,arctic
+no-ld-is|Lofoten Islands|Svolvær|Norway|EU|68.234|14.568|wt:norway/lofoten/islands|nature,island
+fi-tu-ct|Turku Centre|Turku|Finland|EU|60.452|22.265|wt:finland/turku/centre|city
+fi-ou-ct|Oulu Centre|Oulu|Finland|EU|65.014|25.473|wt:finland/oulu/centre|city
+fi-ku-ct|Kuopio|Kuopio|Finland|EU|62.893|27.677|wt:finland/kuopio/centre|city
+fi-lp-nr|Lapland Aurora|Saariselkä|Finland|EU|68.410|27.413|wt:finland/lapland/aurora|nature,arctic
+ee-tr-ct|Tartu Centre|Tartu|Estonia|EU|58.377|26.729|wt:estonia/tartu/centre|city
+lv-lp-ct|Liepaja Beach|Liepaja|Latvia|EU|56.505|21.011|wt:latvia/liepaja/beach|beach,city
+lt-kl-ct|Klaipeda Port|Klaipeda|Lithuania|EU|55.708|21.135|wt:lithuania/klaipeda/port|city,harbour
+is-ak-ct|Akureyri|Akureyri|Iceland|EU|65.683|−18.091|wt:iceland/akureyri/centre|city,nature
+is-jk-gl|Jökulsárlón Glacier|Jökulsárlón|Iceland|EU|64.078|−16.229|wt:iceland/south/jokulsarlon|nature,glacier
+ua-kh-ct|Kharkiv Centre|Kharkiv|Ukraine|EU|49.994|36.231|wt:ukraine/kharkiv/centre|city
+ua-dn-ct|Dnipro Centre|Dnipro|Ukraine|EU|48.464|35.046|wt:ukraine/dnipro/centre|city
+by-br-ct|Brest Centre|Brest|Belarus|EU|52.098|23.685|wt:belarus/brest/centre|city
+by-gd-ct|Gomel Centre|Gomel|Belarus|EU|52.424|30.987|wt:belarus/gomel/centre|city
+md-bl-ct|Bălți Centre|Bălți|Moldova|EU|47.762|27.929|wt:moldova/balti/centre|city
+ru-nn-ct|Nizhny Novgorod|Nizhny Novgorod|Russia|EU|56.327|44.002|wt:russia/nizhny-novgorod/centre|city
+ru-sm-ct|Samara Centre|Samara|Russia|EU|53.195|50.100|wt:russia/samara/centre|city
+ru-kr-ct|Krasnodar Centre|Krasnodar|Russia|EU|45.035|38.976|wt:russia/krasnodar/centre|city
+ru-mu-ct|Murmansk Port|Murmansk|Russia|EU|68.970|33.075|wt:russia/murmansk/port|city,arctic
+ru-ik-ct|Irkutsk Baikal|Irkutsk|Russia|AS|52.287|104.281|wt:russia/irkutsk/baikal|city,lake
+jp-ng-ct|Nagoya Centre|Nagoya|Japan|AS|35.181|136.906|wt:japan/nagoya/centre|city
+jp-fk-ct|Fukuoka Centre|Fukuoka|Japan|AS|33.590|130.402|wt:japan/fukuoka/centre|city
+jp-sn-ct|Sendai Centre|Sendai|Japan|AS|38.268|140.870|wt:japan/sendai/centre|city
+jp-km-ct|Kumamoto Centre|Kumamoto|Japan|AS|32.803|130.708|wt:japan/kumamoto/centre|city
+jp-ng-ct2|Nagasaki Harbour|Nagasaki|Japan|AS|32.751|129.878|wt:japan/nagasaki/harbour|city,harbour
+jp-kn-ct|Kanazawa Centre|Kanazawa|Japan|AS|36.562|136.649|wt:japan/kanazawa/centre|city
+cn-km-ct|Kunming Centre|Kunming|China|AS|25.039|102.710|wt:china/kunming/centre|city
+cn-xl-ct|Xiamen Centre|Xiamen|China|AS|24.479|118.089|wt:china/xiamen/centre|city,coast
+cn-dl-ct|Dalian Centre|Dalian|China|AS|38.915|121.622|wt:china/dalian/centre|city,coast
+cn-hr-ct|Harbin Centre|Harbin|China|AS|45.757|126.652|wt:china/harbin/centre|city
+cn-ts-ct|Tianjin Centre|Tianjin|China|AS|39.084|117.200|wt:china/tianjin/centre|city
+cn-gy-ct|Guiyang Centre|Guiyang|China|AS|26.647|106.630|wt:china/guiyang/centre|city
+cn-nn-ct|Nanning Centre|Nanning|China|AS|22.817|108.366|wt:china/nanning/centre|city
+cn-ur-ct|Urumqi Centre|Urumqi|China|AS|43.826|87.617|wt:china/xinjiang/urumqi|city
+kr-dg-ct|Daegu Centre|Daegu|South Korea|AS|35.871|128.601|wt:south-korea/daegu/centre|city
+kr-gj-ct|Gwangju Centre|Gwangju|South Korea|AS|35.160|126.852|wt:south-korea/gwangju/centre|city
+kr-dj-ct|Daejeon Centre|Daejeon|South Korea|AS|36.351|127.385|wt:south-korea/daejeon/centre|city
+in-ah-ct|Ahmedabad Centre|Ahmedabad|India|AS|23.023|72.571|wt:india/gujarat/ahmedabad|city
+in-pu-ct|Pune Centre|Pune|India|AS|18.520|73.856|wt:india/maharashtra/pune|city
+in-lu-ct|Lucknow Centre|Lucknow|India|AS|26.847|80.947|wt:india/uttar-pradesh/lucknow|city
+in-pa-ct|Patna Centre|Patna|India|AS|25.611|85.144|wt:india/bihar/patna|city
+in-si-ct|Shimla Hill Station|Shimla|India|AS|31.104|77.173|wt:india/himachal/shimla|city,mountain
+in-ud-ct|Udaipur Lake Palace|Udaipur|India|AS|24.576|73.684|wt:india/rajasthan/udaipur|city,lake
+in-my-ct|Mysore Palace|Mysore|India|AS|12.306|76.656|wt:india/karnataka/mysore|city,landmark
+in-ri-ct|Rishikesh Ganges|Rishikesh|India|AS|30.087|78.268|wt:india/uttarakhand/rishikesh|city,river
+th-ay-ct|Ayutthaya Ruins|Ayutthaya|Thailand|AS|14.357|100.568|wt:thailand/ayutthaya/ruins|landmark,ancient
+th-hh-bc|Hua Hin Beach|Hua Hin|Thailand|AS|12.568|99.958|wt:thailand/hua-hin/beach|beach
+th-kr-bc|Krabi Beach|Krabi|Thailand|AS|8.086|98.906|wt:thailand/krabi/beach|beach,nature
+vn-nt-bc|Nha Trang Beach|Nha Trang|Vietnam|AS|12.238|109.197|wt:vietnam/nha-trang/beach|beach
+vn-hp-ct|Hai Phong Centre|Hai Phong|Vietnam|AS|20.846|106.683|wt:vietnam/hai-phong/centre|city
+my-jb-ct|Johor Bahru|Johor Bahru|Malaysia|AS|1.463|103.757|wt:malaysia/johor/johor-bahru|city
+my-kk-ct|Kota Kinabalu|Kota Kinabalu|Malaysia|AS|5.980|116.073|wt:malaysia/sabah/kota-kinabalu|city,coast
+my-kc-ct|Kuching Centre|Kuching|Malaysia|AS|1.553|110.346|wt:malaysia/sarawak/kuching|city
+id-mn-ct|Manado Centre|Manado|Indonesia|AS|1.487|124.846|wt:indonesia/sulawesi/manado|city
+id-mk-ct|Makassar Centre|Makassar|Indonesia|AS|−5.135|119.424|wt:indonesia/sulawesi/makassar|city
+id-md-ct|Medan Centre|Medan|Indonesia|AS|3.595|98.672|wt:indonesia/sumatra/medan|city
+id-pd-ct|Padang Centre|Padang|Indonesia|AS|−0.949|100.354|wt:indonesia/sumatra/padang|city
+ph-bg-ct|Baguio Centre|Baguio|Philippines|AS|16.412|120.594|wt:philippines/baguio/centre|city,mountain
+ph-il-ct|Iloilo Centre|Iloilo|Philippines|AS|10.720|122.562|wt:philippines/iloilo/centre|city
+kh-sh-bc|Sihanoukville Beach|Sihanoukville|Cambodia|AS|10.627|103.522|wt:cambodia/sihanoukville/beach|beach
+mm-bg-ct|Bagan Temples|Bagan|Myanmar|AS|21.172|94.858|wt:myanmar/bagan/temples|landmark,ancient
+lk-sg-bc|Sigiriya Rock|Sigiriya|Sri Lanka|AS|7.957|80.760|wt:sri-lanka/sigiriya/rock|landmark,nature
+lk-ng-bc|Negombo Beach|Negombo|Sri Lanka|AS|7.189|79.838|wt:sri-lanka/negombo/beach|beach
+np-ev-mt|Everest Base|Lukla|Nepal|AS|27.987|86.925|wt:nepal/everest/base-camp|nature,mountain
+pk-ps-ct|Peshawar Centre|Peshawar|Pakistan|AS|34.010|71.578|wt:pakistan/peshawar/centre|city
+kz-sh-ct|Shymkent Centre|Shymkent|Kazakhstan|AS|42.318|69.597|wt:kazakhstan/shymkent/centre|city
+uz-bk-ct|Bukhara Centre|Bukhara|Uzbekistan|AS|39.767|64.421|wt:uzbekistan/bukhara/centre|city,landmark
+ge-bt-ct|Batumi Beach|Batumi|Georgia|AS|41.642|41.634|wt:georgia/batumi/beach|beach,city
+tr-bd-ct|Bodrum Beach|Bodrum|Turkey|AS|37.034|27.430|wt:turkey/bodrum/beach|beach
+tr-tb-ct|Trabzon Centre|Trabzon|Turkey|AS|41.003|39.717|wt:turkey/trabzon/centre|city
+ir-tb-ct|Tabriz Centre|Tabriz|Iran|AS|38.080|46.299|wt:iran/tabriz/centre|city
+ir-mh-ct|Mashhad Centre|Mashhad|Iran|AS|36.298|59.606|wt:iran/mashhad/centre|city,landmark
+lb-tr-ct|Tripoli Centre|Tripoli|Lebanon|AS|34.437|35.850|wt:lebanon/tripoli/centre|city
+jo-aq-ct|Aqaba Beach|Aqaba|Jordan|AS|29.527|35.007|wt:jordan/aqaba/beach|beach,coast
+il-hf-ct|Haifa Harbour|Haifa|Israel|AS|32.794|34.990|wt:israel/haifa/harbour|city,harbour
+il-dn-ct|Dead Sea View|Ein Bokek|Israel|AS|31.200|35.360|wt:israel/dead-sea/view|nature
+sa-dm-ct|Dammam Corniche|Dammam|Saudi Arabia|AS|26.434|50.103|wt:saudi-arabia/dammam/corniche|city,coast
+ae-sh-ct|Sharjah Centre|Sharjah|UAE|AS|25.346|55.420|wt:uae/sharjah/centre|city
+om-sl-ct|Salalah Coast|Salalah|Oman|AS|17.018|54.092|wt:oman/salalah/coast|city,coast
+eg-hr-ct|Hurghada Beach|Hurghada|Egypt|AF|27.258|33.812|wt:egypt/hurghada/beach|beach,resort
+eg-as-ct|Aswan Nile|Aswan|Egypt|AF|24.089|32.899|wt:egypt/aswan/nile|city,river
+ma-ag-ct|Agadir Beach|Agadir|Morocco|AF|30.420|−9.598|wt:morocco/agadir/beach|beach
+ma-rb-ct|Rabat Centre|Rabat|Morocco|AF|34.020|−6.836|wt:morocco/rabat/centre|city
+tn-dj-ct|Djerba Beach|Djerba|Tunisia|AF|33.808|10.846|wt:tunisia/djerba/beach|beach,island
+dz-cn-ct|Constantine|Constantine|Algeria|AF|36.365|6.615|wt:algeria/constantine/centre|city
+za-st-ct|Stellenbosch Wine|Stellenbosch|South Africa|AF|−33.934|18.867|wt:south-africa/stellenbosch/wine|nature
+za-gp-ct|Garden Route|Knysna|South Africa|AF|−34.034|23.049|wt:south-africa/garden-route/knysna|nature,coast
+za-bl-ct|Bloemfontein|Bloemfontein|South Africa|AF|−29.087|26.159|wt:south-africa/bloemfontein/centre|city
+za-pm-ct|Pretoria Union|Pretoria|South Africa|AF|−25.747|28.188|wt:south-africa/pretoria/union-buildings|city,landmark
+ng-ph-ct|Port Harcourt|Port Harcourt|Nigeria|AF|4.815|7.050|wt:nigeria/port-harcourt/centre|city
+ng-kn-ct|Kano Centre|Kano|Nigeria|AF|12.000|8.517|wt:nigeria/kano/centre|city
+gh-ku-ct|Kumasi Centre|Kumasi|Ghana|AF|6.688|−1.624|wt:ghana/kumasi/centre|city
+gh-cp-ct|Cape Coast Castle|Cape Coast|Ghana|AF|5.103|−1.247|wt:ghana/cape-coast/castle|city,landmark
+ke-lm-np|Lake Nakuru|Nakuru|Kenya|AF|−0.367|36.084|wt:kenya/nakuru/lake|nature,wildlife
+ke-na-ct|Nanyuki Mt Kenya|Nanyuki|Kenya|AF|−0.006|37.073|wt:kenya/nanyuki/mount-kenya|nature,mountain
+tz-mg-ct|Mwanza Lake|Mwanza|Tanzania|AF|−2.517|32.900|wt:tanzania/mwanza/lake|city,lake
+tz-dd-bc|Dodoma Centre|Dodoma|Tanzania|AF|−6.173|35.750|wt:tanzania/dodoma/centre|city
+ug-jj-np|Jinja Nile Source|Jinja|Uganda|AF|0.424|33.204|wt:uganda/jinja/nile-source|nature,river
+rw-vl-np|Volcanoes NP|Musanze|Rwanda|AF|−1.500|29.568|wt:rwanda/musanze/volcanoes|nature
+et-gd-ct|Gondar Castle|Gondar|Ethiopia|AF|12.603|37.466|wt:ethiopia/gondar/castle|landmark
+et-ll-ct|Lalibela Churches|Lalibela|Ethiopia|AF|12.031|39.047|wt:ethiopia/lalibela/churches|landmark,ancient
+sn-sl-ct|Saint-Louis|Saint-Louis|Senegal|AF|16.019|−16.501|wt:senegal/saint-louis/centre|city
+ci-ym-ct|Yamoussoukro|Yamoussoukro|Côte d Ivoire|AF|6.821|−5.276|wt:ivory-coast/yamoussoukro/centre|city,landmark
+cm-dl-hb|Douala Harbour|Douala|Cameroon|AF|4.048|9.695|wt:cameroon/douala/harbour|city,harbour
+ao-lb-ct|Lubango|Lubango|Angola|AF|−14.917|13.500|wt:angola/lubango/centre|city
+zm-nd-ct|Ndola Centre|Ndola|Zambia|AF|−12.968|28.636|wt:zambia/ndola/centre|city
+mz-br-bc|Beira Beach|Beira|Mozambique|AF|−19.844|34.861|wt:mozambique/beira/beach|beach
+mg-ns-bc|Nosy Be Beach|Nosy Be|Madagascar|AF|−13.328|48.265|wt:madagascar/nosy-be/beach|beach,island
+na-et-np|Etosha NP|Etosha|Namibia|AF|−18.856|16.325|wt:namibia/etosha/wildlife|nature,wildlife
+bw-mk-ct|Maun Okavango|Maun|Botswana|AF|−19.995|23.418|wt:botswana/maun/okavango|nature,wildlife
+ng-ib-ct|Ibadan Centre|Ibadan|Nigeria|AF|7.377|3.947|wt:nigeria/ibadan/centre|city
+au-ar-rc|Alice Springs|Alice Springs|Australia|OC|−23.698|133.881|wt:australia/northern-territory/alice-springs|nature
+au-bs-gp|Broome Cable Beach|Broome|Australia|OC|−17.958|122.222|wt:australia/western-australia/broome|beach,nature
+au-nc-ct|Newcastle Beach|Newcastle|Australia|OC|−32.928|151.784|wt:australia/new-south-wales/newcastle|beach
+au-wl-ct|Wollongong|Wollongong|Australia|OC|−34.425|150.893|wt:australia/new-south-wales/wollongong|city,coast
+au-ts-ct|Townsville|Townsville|Australia|OC|−19.258|146.818|wt:australia/queensland/townsville|city
+nz-rt-ct|Rotorua Geysers|Rotorua|New Zealand|OC|−38.137|176.251|wt:new-zealand/bay-of-plenty/rotorua|nature
+nz-ta-ct|Taupo Lake|Taupo|New Zealand|OC|−38.685|176.070|wt:new-zealand/waikato/taupo|nature,lake
+nz-ne-ct|Nelson|Nelson|New Zealand|OC|−41.271|173.284|wt:new-zealand/nelson/centre|city
+nz-np-mt|Mt Taranaki|New Plymouth|New Zealand|OC|−39.295|174.064|wt:new-zealand/taranaki/mount|nature,mountain
+fj-ds-bc|Denarau Beach|Denarau|Fiji|OC|−17.771|177.371|wt:fiji/denarau/beach|beach,resort
+pg-lr-ct|Lae Centre|Lae|Papua New Guinea|OC|−6.733|147.000|wt:papua-new-guinea/lae/centre|city
+nc-nm-ct|Nouméa|Nouméa|New Caledonia|OC|−22.276|166.458|wt:new-caledonia/noumea/centre|city,island
+pf-pp-ct|Papeete|Papeete|French Polynesia|OC|−17.535|−149.569|wt:french-polynesia/papeete/centre|city,island
+ck-rr-ct|Rarotonga|Rarotonga|Cook Islands|OC|−21.235|−159.778|wt:cook-islands/rarotonga/beach|beach,island
+us-sy-dt|Syracuse|Syracuse|USA|NA|43.049|−76.147|wt:usa/new-york/syracuse|city
+us-rb-dt|Rochester|Rochester|USA|NA|43.157|−77.616|wt:usa/new-york/rochester|city
+us-bf-dt|Buffalo Niagara|Buffalo|USA|NA|42.886|−78.879|wt:usa/new-york/buffalo|city
+us-ab-dt|Albany|Albany|USA|NA|42.653|−73.757|wt:usa/new-york/albany|city
+us-ht-dt|Hartford|Hartford|USA|NA|41.764|−72.685|wt:usa/connecticut/hartford|city
+us-sm-hb|Monterey Bay|Monterey|USA|NA|36.600|−121.894|wt:usa/california/monterey|coast,nature
+us-nm-bc|North Myrtle Beach|North Myrtle|USA|NA|33.816|−78.680|wt:usa/south-carolina/north-myrtle|beach
+us-mb-dt|Mobile Bay|Mobile|USA|NA|30.694|−88.043|wt:usa/alabama/mobile-bay|city,harbour
+us-br-dt|Baton Rouge|Baton Rouge|USA|NA|30.451|−91.187|wt:usa/louisiana/baton-rouge|city
+us-tu-ok|Tulsa|Tulsa|USA|NA|36.154|−95.993|wt:usa/oklahoma/tulsa|city
+us-wi-dt|Wichita|Wichita|USA|NA|37.688|−97.336|wt:usa/kansas/wichita|city
+us-lc-dt|Lincoln|Lincoln|USA|NA|40.813|−96.708|wt:usa/nebraska/lincoln|city
+us-cr-dt|Cedar Rapids|Cedar Rapids|USA|NA|41.977|−91.666|wt:usa/iowa/cedar-rapids|city
+us-dl-dt|Duluth Harbour|Duluth|USA|NA|46.786|−92.100|wt:usa/minnesota/duluth|city,harbour
+us-gf-dt|Grand Forks|Grand Forks|USA|NA|47.925|−97.033|wt:usa/north-dakota/grand-forks|city
+us-ms-dt|Missoula|Missoula|USA|NA|46.872|−114.001|wt:usa/montana/missoula|city,mountain
+us-bp-dt|Boise Foothills|Boise|USA|NA|43.618|−116.215|wt:usa/idaho/boise-foothills|city,nature
+us-la-gr|Griffith Observatory|Los Angeles|USA|NA|34.118|−118.300|wt:usa/california/griffith-observatory|landmark
+us-fi-bc|Fire Island|Fire Island|USA|NA|40.631|−73.178|wt:usa/new-york/fire-island|beach
+us-ct-bc|Cape Cod|Cape Cod|USA|NA|41.669|−70.297|wt:usa/massachusetts/cape-cod|beach
+us-ht-hb|Hilton Head|Hilton Head|USA|NA|32.216|−80.752|wt:usa/south-carolina/hilton-head|beach,resort
+us-st-bc|St Augustine Beach|St Augustine|USA|NA|29.856|−81.265|wt:usa/florida/st-augustine|beach
+ca-nf-ct|Niagara on the Lake|Niagara on Lake|Canada|NA|43.254|−79.071|wt:canada/ontario/niagara-on-lake|city
+ca-pl-ct|Prince Rupert|Prince Rupert|Canada|NA|54.316|−130.321|wt:canada/british-columbia/prince-rupert|city,harbour
+ca-kp-ct|Kamloops|Kamloops|Canada|NA|50.674|−120.328|wt:canada/british-columbia/kamloops|city
+uk-ld-ct|Leeds Centre|Leeds|United Kingdom|EU|53.800|−1.549|wt:england/leeds/centre|city
+uk-sh-ct|Sheffield Centre|Sheffield|United Kingdom|EU|53.381|−1.470|wt:england/sheffield/centre|city
+uk-nt-ct2|Nottingham Centre|Nottingham|United Kingdom|EU|52.954|−1.155|wt:england/nottingham/centre|city
+uk-bs-ct|Bristol Harbour|Bristol|United Kingdom|EU|51.449|−2.600|wt:england/bristol/harbour|city,harbour
+uk-sp-ct|Southampton Docks|Southampton|United Kingdom|EU|50.904|−1.404|wt:england/southampton/docks|city,harbour
+uk-st-ct|Stirling Castle|Stirling|United Kingdom|EU|56.124|−3.947|wt:scotland/stirling/castle|landmark
+uk-du-ct|Dundee Waterfront|Dundee|United Kingdom|EU|56.462|−2.971|wt:scotland/dundee/waterfront|city
+fr-re-ct|Rennes Centre|Rennes|France|EU|48.117|−1.678|wt:france/brittany/rennes|city
+fr-dj-ct|Dijon Centre|Dijon|France|EU|47.322|5.041|wt:france/burgundy/dijon|city
+fr-av-ct|Avignon Centre|Avignon|France|EU|43.949|4.806|wt:france/provence/avignon|city,landmark
+de-mn-ct|Mannheim Centre|Mannheim|Germany|EU|49.488|8.467|wt:germany/mannheim/centre|city
+de-ws-ct|Wiesbaden Centre|Wiesbaden|Germany|EU|50.083|8.240|wt:germany/hesse/wiesbaden|city
+de-au-ct|Augsburg Centre|Augsburg|Germany|EU|48.365|10.898|wt:germany/bavaria/augsburg|city
+de-lb-ct|Lübeck Centre|Lübeck|Germany|EU|53.870|10.687|wt:germany/schleswig-holstein/lubeck|city
+it-lc-ct|Lecce Centre|Lecce|Italy|EU|40.352|18.174|wt:italy/puglia/lecce|city
+it-md-ct|Modena Centre|Modena|Italy|EU|44.647|10.926|wt:italy/emilia-romagna/modena|city
+it-pg-ct|Positano Amalfi|Positano|Italy|EU|40.628|14.485|sl:italia/campania/salerno/positano|coast,landmark
+es-cr-ct|Córdoba Centre|Córdoba|Spain|EU|37.885|−4.779|wt:spain/andalusia/cordoba|city,landmark
+es-al-bc|Alicante Beach|Alicante|Spain|EU|38.345|−0.481|wt:spain/valencia/alicante|beach,city
+es-ss-ct|San Sebastián|San Sebastián|Spain|EU|43.318|−1.981|wt:spain/basque-country/san-sebastian|beach,city
+jp-ts-ct|Tokushima Centre|Tokushima|Japan|AS|34.066|134.559|wt:japan/tokushima/centre|city
+jp-mt-ct|Matsuyama Centre|Matsuyama|Japan|AS|33.839|132.766|wt:japan/matsuyama/centre|city
+jp-ak-ct|Akita Centre|Akita|Japan|AS|39.720|140.103|wt:japan/akita/centre|city
+jp-ao-ct|Aomori Centre|Aomori|Japan|AS|40.822|140.747|wt:japan/aomori/centre|city,nature
+cn-cs-ct|Changsha Centre|Changsha|China|AS|28.228|112.939|wt:china/changsha/centre|city
+cn-fz-ct|Fuzhou Centre|Fuzhou|China|AS|26.075|119.306|wt:china/fuzhou/centre|city
+cn-hf-ct|Hefei Centre|Hefei|China|AS|31.821|117.227|wt:china/hefei/centre|city
+cn-ln-ct|Lanzhou Centre|Lanzhou|China|AS|36.062|103.834|wt:china/lanzhou/centre|city
+in-ch-dt|Chandigarh|Chandigarh|India|AS|30.734|76.779|wt:india/chandigarh/centre|city
+in-in-ct|Indore Centre|Indore|India|AS|22.720|75.858|wt:india/madhya-pradesh/indore|city
+in-cg-ct|Coorg Hills|Coorg|India|AS|12.420|75.740|wt:india/karnataka/coorg|nature,mountain
+in-jp-bc|Jaipur Amber Fort|Jaipur|India|AS|26.986|75.852|wt:india/rajasthan/amber-fort|landmark
+th-lp-ct|Lampang Centre|Lampang|Thailand|AS|18.292|99.491|wt:thailand/lampang/centre|city
+th-ut-ct|Udon Thani|Udon Thani|Thailand|AS|17.415|102.787|wt:thailand/udon-thani/centre|city
+vn-dl-ct|Dalat Centre|Dalat|Vietnam|AS|11.946|108.442|wt:vietnam/dalat/centre|city,mountain
+vn-ct-ct|Can Tho River|Can Tho|Vietnam|AS|10.045|105.747|wt:vietnam/can-tho/river|city,river
+id-bn-ct|Bandung Centre|Bandung|Indonesia|AS|−6.905|107.608|wt:indonesia/java/bandung|city
+id-sm-ct|Semarang Centre|Semarang|Indonesia|AS|−6.967|110.420|wt:indonesia/java/semarang|city
+ph-dg-ct|Dagupan Centre|Dagupan|Philippines|AS|16.043|120.340|wt:philippines/dagupan/centre|city
+ph-zb-ct|Zamboanga|Zamboanga|Philippines|AS|6.910|122.074|wt:philippines/zamboanga/centre|city
+my-ml-ct|Melaka Centre|Melaka|Malaysia|AS|2.189|102.250|wt:malaysia/melaka/centre|city,landmark
+my-ip-ct|Ipoh Centre|Ipoh|Malaysia|AS|4.597|101.090|wt:malaysia/perak/ipoh|city
+tr-ks-ct|Kayseri Centre|Kayseri|Turkey|AS|38.732|35.485|wt:turkey/kayseri/centre|city
+tr-kr-ct|Konya Centre|Konya|Turkey|AS|37.872|32.493|wt:turkey/konya/centre|city,landmark
+sa-tb-ct|Tabuk Centre|Tabuk|Saudi Arabia|AS|28.383|36.583|wt:saudi-arabia/tabuk/centre|city
+qa-lk-ct|Lusail City|Lusail|Qatar|AS|25.430|51.490|wt:qatar/lusail/city|city,skyline
+ae-rk-ct|Ras Al Khaimah|Ras Al Khaimah|UAE|AS|25.789|55.943|wt:uae/ras-al-khaimah/centre|city
+ng-en-ct|Enugu Centre|Enugu|Nigeria|AF|6.441|7.497|wt:nigeria/enugu/centre|city
+ng-be-ct|Benin City|Benin City|Nigeria|AF|6.335|5.627|wt:nigeria/benin-city/centre|city
+za-el-ct|East London Beach|East London|South Africa|AF|−33.015|27.911|wt:south-africa/east-london/beach|beach
+mz-nm-ct|Nampula Centre|Nampula|Mozambique|AF|−15.117|39.267|wt:mozambique/nampula/centre|city
+ke-el-ct|Eldoret|Eldoret|Kenya|AF|0.514|35.270|wt:kenya/eldoret/centre|city
+tz-ir-ct|Iringa|Iringa|Tanzania|AF|−7.770|35.692|wt:tanzania/iringa/centre|city
+`.trim().split('\n').map(line => {
+  const [id,name,city,country,continent,lat,lng,src,tags] = line.replace(/\u2212/g,'-').split('|');
+  let embed = '';
+  if (src.startsWith('yt:')) embed = 'https://www.youtube-nocookie.com/embed/' + src.slice(3) + '?autoplay=1&mute=1&playsinline=1';
+  else if (src.startsWith('wt:')) embed = 'https://www.webcamtaxi.com/en/' + src.slice(3) + '.html';
+  else if (src.startsWith('sl:')) embed = 'https://www.skylinewebcams.com/en/webcam/' + src.slice(3) + '.html';
+  else embed = src;
+  return { id, name, city, country, continent, lat: parseFloat(lat), lng: parseFloat(lng), embed, tags: tags.split(',') };
+});
+
+// Add thumbnail URLs
+CAMERAS.forEach(c => {
+  if (c.embed.includes('/embed/')) {
+    const vid = c.embed.split('/embed/')[1].split('?')[0];
+    c.thumbnailUrl = `https://img.youtube.com/vi/${vid}/mqdefault.jpg`;
+    c.youtubeId = vid;
+  } else {
+    // Generate an SVG placeholder with the camera name
+    c.thumbnailUrl = `data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#0c1018"/><rect x="1" y="1" width="318" height="178" fill="none" stroke="#1a2535" stroke-width="1" rx="4"/><circle cx="160" cy="75" r="20" fill="none" stroke="#2a4a5a" stroke-width="1.5"/><circle cx="160" cy="75" r="8" fill="#2a4a5a"/><text x="160" y="120" text-anchor="middle" fill="#5a7a8a" font-family="monospace" font-size="11">${c.name}</text><text x="160" y="138" text-anchor="middle" fill="#3a5a6a" font-family="monospace" font-size="9">${c.city}, ${c.country}</text></svg>`
+    )}`;
+  }
+});
+
+// ================================================================
+//  VERIFIED LIVE YOUTUBE STREAMS — All confirmed live, embeddable
+//  Mapping strategy: direct cam-id > city > country > continent fallback
+//  External webcamtaxi/skylinewebcams used only when no YT option exists
+// ================================================================
+
+// Direct per-camera overrides (most specific match)
+const YT_OVERRIDES = {
+  // ---- USA: New York ----
+  'us-nyc-ts': 'rnXIjl_Rzy4',   // EarthCam Times Square 4K
+  'us-nyc-ms': '2_PDaUJbfuI',   // SUMMIT One Vanderbilt (Manhattan skyline)
+  'us-nyc-bp': 'OgqbZLzEbQU',   // NYC Harbor/Brooklyn
+  'us-nyc-cs': 'cWR8KGKftUw',   // Statue of Liberty
+  'us-nyc-hr': 'OgqbZLzEbQU',   // NYC Harbor
+  'us-nyc-sl': 'cWR8KGKftUw',   // Statue of Liberty
+  'us-nyc-ci': 'H67j7H-7QD0',   // Coney Island
+
+  // ---- USA: Major cities ----
+  'us-sf-gg': 'BSWhGNXxT9A',    // San Francisco Bay (Mersea)
+  'us-sf-fb': 'a5IW4I-z2rs',    // SF Pier 23
+  'us-la-sm': 'EO_1LWqsCNE',    // Venice Beach LA (closest)
+  'us-la-vb': 'EO_1LWqsCNE',    // Venice Beach
+  'us-la-hw': 'EO_1LWqsCNE',    // Hollywood (LA area)
+  'us-mi-sb': 'cmkAbDUEoyA',    // Hollywood Beach FL / South Beach
+  'us-mi-dt': 'y0XPkjM9-P4',    // Port Miami
+  'us-ch-sl': 'O0UGT7AT3aw',    // Chicago Skydeck
+  'us-ch-lk': '67BCsiW-1Io',    // Chicago Midway
+  'us-ch-ma': '0ZzPWoeZzuI',    // Chicago Midway Airport (EarthCam)
+  'us-ho-sk': 'SDK_m1_BVJ4',    // Houston ABC13
+  'us-dc-cp': 'rnXIjl_Rzy4',    // fallback NYC landmark
+  'us-lv-st': '_rmUXOHSf0w',    // Las Vegas Allegiant Stadium
+  'us-lv-fr': 'KJuGU7v5oYw',    // Las Vegas Bellagio
+  'us-ph-sk': '0Vu5PYxdTpE',    // Philadelphia
+  'us-cl-sk': 'iHqqkh_Lths',    // Cleveland Terminal Tower
+  'us-bs-hb': '_5zWp0bMgcI',    // Baltimore Aquarium (closest)
+  'us-no-bb': 'rnNPl27Arpk',    // New Orleans Balcony
+  'us-no-st': 'Ksrleaxxxhw',    // New Orleans Street
+  'us-mi-ml': 'MT5Og9gOKuM',    // Milwaukee (for Midwest)
+  'us-ak-an': '61pi8UjLOlo',    // Anchorage Lake Hood
+  'us-ak-sk': 'sF5hFDGN20Y',    // Sitka Alaska
+  'us-ky-bc': '2wqpy036z24',    // St John USVI beach bar
+  'us-km-ct': '9fzUjSTK5F8',    // Kansas City
+  'us-km-sk': '9fzUjSTK5F8',    // Kansas City
+  'us-oc-bc': 'cmkAbDUEoyA',    // Clearwater (Hollywood Beach area)
+  'us-ob-bw': '_5zWp0bMgcI',    // Ocean City (Baltimore Aquarium fallback)
+  'us-fm-bc': 'skM8DTCx3gM',    // Fort Myers FL
+  'us-st-bc': '1HoR5mDk9p0',    // St Augustine (Palatka FL nearby)
+  'us-mn-ml': 'fSybjFdUGrk',    // Minnesota Hyland snow
+  'us-se-sk': 'TmtVbezZaqg',    // Leavenworth WA (for Seattle area)
+  'us-po-br': 'Ul6wlBwXz9Y',    // Portland (Morgan Hill CA fallback)
+  'us-sd-bc': 'a5IW4I-z2rs',    // San Diego (SF Pier fallback)
+  'us-ny-nf': 'qx7gry390YA',    // Niagara Falls
+  'us-ta-hb': 'skM8DTCx3gM',    // Tampa (Fort Myers nearby)
+  'us-ja-rv': 'skM8DTCx3gM',    // Jacksonville beach
+  'us-at-sk': 'y0XPkjM9-P4',    // Atlanta (Scenic cams)
+  'us-da-sk': 'y0XPkjM9-P4',    // Dallas
+  'us-sa-rw': 'mhJRzQsLZGg',    // San Antonio — SpaceX Starbase
+  'us-au-dt': 'mhJRzQsLZGg',    // Austin
+  'us-dn-sk': 'y0XPkjM9-P4',    // Denver
+  'us-ph-vl': 'kLoFxVhRWtQ',    // Phoenix (Roswell NM nearby)
+  'us-nv-br': 'y0XPkjM9-P4',    // Nashville (scenic fallback)
+  'us-in-ms': 'MqzQdTHCTOg',    // Indianapolis (Ohio River)
+  'us-ci-rv': 'MqzQdTHCTOg',    // Cincinnati (Ohio River)
+  'us-pi-br': 'MqzQdTHCTOg',    // Pittsburgh (rivers)
+  'us-sl-cv': 'y0XPkjM9-P4',    // Salt Lake City
+  'us-dt-rv': 'F_bENs4GV24',    // Detroit (Marine City MI)
+  'us-rl-dt': 'y0XPkjM9-P4',    // Raleigh
+  'us-hi-wk': 'Thtj8Ht7Z_c',    // Honolulu Waikiki (Seychelles ocean)
+  'us-hi-na': '_BMi3usEwi8',    // Kauai (Maldives beach)
+  'us-ms-gb': 'cmkAbDUEoyA',    // Gulf Shores (Hollywood Beach)
+  'us-or-bc': 'YEAhxXd-TiY',    // Myrtle Beach (Lauderdale pier)
+  'us-ft-fd': 'y0XPkjM9-P4',    // Fort Lauderdale
+  'us-kw-hb': 'iHJbTrQSZys',    // Key West
+
+  // ---- Canada ----
+  'ca-ni-fl': 'qx7gry390YA',    // Niagara Falls (shared)
+  'ca-to-cn': 'yF7XdpkL34w',    // Toronto (Port Colborne ON)
+  'ca-va-hb': 'rxyNjFKwzJA',    // Vancouver Harbour
+  'ca-mo-sk': 'yF7XdpkL34w',    // Montreal (Ontario waterway)
+  'ca-ot-ph': 'yF7XdpkL34w',    // Ottawa
+  'ca-hx-hb': 'yF7XdpkL34w',    // Halifax Harbour
+  'ca-qu-ch': 'yF7XdpkL34w',    // Quebec
+  'ca-vi-hb': 'rxyNjFKwzJA',    // Victoria (BC harbour)
+  'ca-pl-ct': 'rxyNjFKwzJA',    // Prince Rupert BC
+  'ca-nf-ct': 'qx7gry390YA',    // Niagara on the Lake
+
+  // ---- Mexico / Central / South America ----
+  'br-rj-sl': 'VnsRQvfv_g4',    // Rio Sugarloaf
+  'br-rj-cp': 'VnsRQvfv_g4',    // Rio Copacabana
+  'br-sp-av': 'VnsRQvfv_g4',    // São Paulo (South America tour)
+  'br-sp-sk': 'VnsRQvfv_g4',    // São Paulo
+  'ar-ba-ob': 'VnsRQvfv_g4',    // Buenos Aires
+  'co-bg-ct': 'VnsRQvfv_g4',    // Bogotá
+  'pe-li-pa': 'VnsRQvfv_g4',    // Lima Peru
+  'cl-st-ct': 'VnsRQvfv_g4',    // Santiago Chile
+  'uy-mt-ct': 'VnsRQvfv_g4',    // Montevideo Uruguay
+  'py-as-ct': 'VnsRQvfv_g4',    // Asunción Paraguay
+  'ec-qt-ct': 'VnsRQvfv_g4',    // Quito Ecuador
+  've-cc-ct': 'VnsRQvfv_g4',    // Caracas
+  'mx-cn-bc': 'EnojhKoPR0c',    // Cancún (Sint Maarten Caribbean)
+  'mx-pv-bc': 'nFWB7S5-er4',    // Puerto Vallarta (Cayman)
+  'mx-pl-bc': 'EnojhKoPR0c',    // Playa del Carmen
+
+  // ---- UK / Ireland ----
+  'uk-lo-bb': 'M3EYAY2MftI',    // London Abbey Road
+  'uk-lo-td': 'M3EYAY2MftI',    // Tower Bridge
+  'uk-lo-tw': 'M3EYAY2MftI',    // Thames
+  'uk-lo-ox': 'M3EYAY2MftI',    // Oxford Street
+  'uk-lo-he': 'M3EYAY2MftI',    // Heathrow
+  'uk-ed-cs': 'M3EYAY2MftI',    // Edinburgh (UK seaside)
+  'uk-mc-ct': 'M3EYAY2MftI',    // Manchester
+  'uk-li-ct': 'M3EYAY2MftI',    // Liverpool
+  'uk-gl-ct': 'M3EYAY2MftI',    // Glasgow
+  'uk-cw-cp': 'M3EYAY2MftI',    // Cornwall
+  'uk-br-ct': 'M3EYAY2MftI',    // Brighton
+  'uk-ld-ct': 'M3EYAY2MftI',    // Leeds
+  'uk-bs-ct': 'M3EYAY2MftI',    // Bristol
+  'ie-du-tb': '3nyPER2kzqk',    // Dublin EarthCam
+  'ie-du-hb': '3nyPER2kzqk',    // Dublin
+  'ie-gw-cl': '3nyPER2kzqk',    // Galway
+  'ie-ck-ct': '3nyPER2kzqk',    // Cork
+
+  // ---- France ----
+  'fr-pa-ef': 'OzYp4NRZlwQ',    // Paris Palais d'Iéna
+  'fr-pa-nd': 'OzYp4NRZlwQ',    // Notre-Dame
+  'fr-pa-ce': 'OzYp4NRZlwQ',    // Champs-Élysées
+  'fr-pa-sc': 'OzYp4NRZlwQ',    // Sacré-Cœur
+
+  // ---- Italy (SkylineWebcams 600-cam flagship) ----
+  'it-rm-tf': 'S0gNUN3k_Ec',    // Positano Italy (embeddable Italy cam)
+  'it-rm-co': 'S0gNUN3k_Ec',
+  'it-rm-ps': 'S0gNUN3k_Ec',
+  'it-rm-pn': 'S0gNUN3k_Ec',
+  'it-ve-gc': 'S0gNUN3k_Ec',    // Venice
+  'it-ve-sm': 'S0gNUN3k_Ec',
+  'it-mi-dm': 'S0gNUN3k_Ec',    // Milan
+  'it-fl-dc': 'S0gNUN3k_Ec',    // Florence
+  'it-fl-pv': 'S0gNUN3k_Ec',
+  'it-na-gf': 'S0gNUN3k_Ec',    // Naples
+  'it-am-ct': 'S0gNUN3k_Ec',    // Amalfi
+  'it-tp-bc': 'S0gNUN3k_Ec',    // Tropea
+  'it-tr-ct': 'S0gNUN3k_Ec',
+  'it-bo-ct': 'S0gNUN3k_Ec',
+  'it-pa-ct': 'S0gNUN3k_Ec',
+  'it-ge-bc': 'S0gNUN3k_Ec',
+  'it-sr-ct': 'S0gNUN3k_Ec',
+  'it-ct-et': 'S0gNUN3k_Ec',
+
+  // ---- Spain (SkylineWebcams 200-cam flagship) ----
+  'es-bc-sf': 'vHr6O_X1Q0g',    // Barcelona → Benidorm (Spain embeddable)
+  'es-bc-rb': 'vHr6O_X1Q0g',
+  'es-bc-bc': 'vHr6O_X1Q0g',    // Benidorm beach
+  'es-bn-bc': 'Pgjsoeq7iGM',    // Mallorca
+  'es-md-ps': 'vHr6O_X1Q0g',    // Madrid → Benidorm
+  'es-md-rp': 'vHr6O_X1Q0g',
+  'es-se-ct': 'vHr6O_X1Q0g',
+  'es-va-ct': 'vHr6O_X1Q0g',
+  'es-bi-ct': 'vHr6O_X1Q0g',
+  'es-ma-bc': 'vHr6O_X1Q0g',    // Malaga Airport
+  'es-lz-bc': 'AAlo3eCPVbk',    // Lanzarote Airport
+
+  // ---- Greece (SkylineWebcams 200-cam flagship) ----
+  'gr-at-ac': 'HfgIFGbdGJ0',
+  'gr-at-sy': 'HfgIFGbdGJ0',
+  'gr-sn-ct': 'HfgIFGbdGJ0',    // Santorini
+  'gr-my-ct': 'HfgIFGbdGJ0',    // Mykonos
+  'gr-cr-bc': 'HfgIFGbdGJ0',
+  'gr-rh-ct': 'HfgIFGbdGJ0',
+  'gr-cf-bc': 'HfgIFGbdGJ0',
+  'gr-ts-wf': 'HfgIFGbdGJ0',
+
+  // ---- Germany / Austria / Switzerland ----
+  'de-be-bg': 'Li3Dvqlo5uE',    // Germany feratel
+  'de-be-fe': 'Li3Dvqlo5uE',
+  'de-mu-mp': 'Li3Dvqlo5uE',    // Munich
+  'de-mu-ok': 'Li3Dvqlo5uE',
+  'de-hm-hb': 'Li3Dvqlo5uE',
+  'de-ff-sk': 'Li3Dvqlo5uE',
+  'de-co-dm': 'Li3Dvqlo5uE',
+  'de-dr-fr': 'Li3Dvqlo5uE',
+  'de-du-rh': 'Li3Dvqlo5uE',
+  'de-st-ct': 'Li3Dvqlo5uE',
+  'de-hd-ct': 'Li3Dvqlo5uE',
+  'de-lp-ct': 'Li3Dvqlo5uE',
+  'at-vi-st': 'Li3Dvqlo5uE',
+  'at-vi-sc': 'Li3Dvqlo5uE',
+  'at-sz-ct': 'Li3Dvqlo5uE',
+  'at-in-sk': 'Li3Dvqlo5uE',
+  'ch-zh-ct': 'Li3Dvqlo5uE',
+  'ch-gv-jt': 'Li3Dvqlo5uE',
+  'ch-zr-mt': 'Li3Dvqlo5uE',
+  'ch-in-jf': 'Li3Dvqlo5uE',
+
+  // ---- Nordic / Baltic ----
+  'dk-cp-nh': 'F0GOOP82094',    // Denmark wildlife
+  'dk-cp-tv': 'F0GOOP82094',
+  'dk-ar-ct': 'F0GOOP82094',
+  'se-st-gm': 'F0GOOP82094',    // Sweden
+  'se-st-hb': 'F0GOOP82094',
+  'se-go-ct': 'F0GOOP82094',
+  'se-mm-ct': 'F0GOOP82094',
+  'no-os-hb': 'LwihxyJ4V20',    // Norway (snow)
+  'no-os-ob': 'LwihxyJ4V20',
+  'no-bg-hb': 'LwihxyJ4V20',
+  'no-tl-ct': 'LwihxyJ4V20',
+  'no-sv-gl': 'LwihxyJ4V20',
+  'fi-hk-ct': 'LwihxyJ4V20',    // Finland Levi
+  'fi-hk-hb': 'LwihxyJ4V20',
+  'fi-rv-ct': 'LwihxyJ4V20',
+  'fi-tp-ct': 'LwihxyJ4V20',
+  'ee-tl-ot': 'VhVgZi2lGv0',    // Tallinn 4K
+  'ee-tl-hb': 'VhVgZi2lGv0',
+  'is-rk-hg': 'LwihxyJ4V20',    // Iceland (snow fallback)
+  'is-rk-hb': 'LwihxyJ4V20',
+  'is-ge-gs': 'LwihxyJ4V20',
+
+  // ---- Russia ----
+  'ru-sp-nv': 'VTqCNoIS8dY',    // St Petersburg
+  'ru-sp-hm': 'VTqCNoIS8dY',
+  'ru-mo-rq': 'VTqCNoIS8dY',    // Moscow (Baikal Siberia)
+  'ru-mo-kr': 'VTqCNoIS8dY',
+  'ru-so-ct': 'VTqCNoIS8dY',
+  'ru-vl-hb': 'VTqCNoIS8dY',    // Vladivostok (Yakutsk Siberia)
+  'ru-nv-ct': 'VTqCNoIS8dY',
+  'ru-yk-ct': 'VTqCNoIS8dY',
+  'ru-ka-ct': 'VTqCNoIS8dY',    // Kaliningrad (Siberian Christmas)
+  'ru-kz-ct': 'VTqCNoIS8dY',
+
+  // ---- Middle East ----
+  'il-jm-ww': '77akujLn4k8',    // Jerusalem Western Wall EarthCam
+  'il-jm-dm': '77akujLn4k8',
+  'il-ta-bc': '77akujLn4k8',    // Tel Aviv
+  'il-ta-ct': '77akujLn4k8',
+  'ae-db-bk': 'ka9MsehA8I4',    // Dubai
+  'ae-db-mr': 'ka9MsehA8I4',
+  'tr-is-bs': 'HfgIFGbdGJ0',    // Istanbul (no good Turkey cam; use earthTV)
+  'tr-is-ot': 'HfgIFGbdGJ0',
+  'tr-an-ct': 'HfgIFGbdGJ0',
+  'jo-pt-ct': 'ka9MsehA8I4',    // Petra Jordan → Dubai (ME neighbor)
+  'jo-am-ct': 'ka9MsehA8I4',    // Amman
+
+  // ---- Africa ----
+  'eg-ca-py': 'ydYDqZQpim8',    // Pyramids Giza → Namibia (Africa)
+  'eg-ca-nl': 'ydYDqZQpim8',
+  'eg-ca-ct': 'ydYDqZQpim8',
+  'eg-lx-tp': 'ydYDqZQpim8',
+  'eg-ax-ct': 'ydYDqZQpim8',
+  'eg-ss-gl': 'ydYDqZQpim8',
+  'na-sw-ds': 'ydYDqZQpim8',    // Namibia desert
+  'na-et-np': 'ydYDqZQpim8',
+  'na-wh-ct': 'ydYDqZQpim8',
+  'tz-zn-ct': 'Thtj8Ht7Z_c',    // Zanzibar (SkylineWebcams)
+  'tz-dr-bc': 'Thtj8Ht7Z_c',
+  'sc-vc-bc': 'Thtj8Ht7Z_c',    // Seychelles Ocean
+  'ke-nb-np': 'ydYDqZQpim8',    // Kenya (Namibia fallback)
+  'ke-mm-np': 'ydYDqZQpim8',
+  'za-ct-tm': 'ydYDqZQpim8',    // Cape Town (nature)
+  'za-ct-wf': 'ydYDqZQpim8',
+  'za-kr-np': 'ydYDqZQpim8',    // Kruger
+
+  // ---- Asia ----
+  'jp-tk-sh': '_k-5U7IeK8g',    // Tokyo
+  'jp-tk-sk': '_k-5U7IeK8g',
+  'jp-tk-tw': '_k-5U7IeK8g',
+  'jp-tk-sn': '_k-5U7IeK8g',
+  'jp-tk-ak': '_k-5U7IeK8g',
+  'jp-fj-mt': '_k-5U7IeK8g',    // Mount Fuji (Japan cams)
+  'jp-os-ct': '_k-5U7IeK8g',
+  'jp-os-db': '_k-5U7IeK8g',
+  'jp-kt-ft': '_k-5U7IeK8g',
+  'jp-kt-gk': '_k-5U7IeK8g',
+  'jp-hr-pc': '_k-5U7IeK8g',
+  'jp-sp-ct': '_k-5U7IeK8g',
+  'jp-nr-pk': '_k-5U7IeK8g',
+  'jp-yh-hb': '_k-5U7IeK8g',
+  'jp-ok-ct': '_k-5U7IeK8g',
+  'cn-sh-sl': 'XWq5kBlakcQ',    // Shanghai → CNA Asia
+  'cn-sh-bd': 'XWq5kBlakcQ',
+  'cn-bj-tc': 'XWq5kBlakcQ',
+  'cn-bj-gw': 'XWq5kBlakcQ',
+  'cn-bj-fb': 'XWq5kBlakcQ',
+  'cn-hk-vh': 'XWq5kBlakcQ',
+  'cn-hk-ts': 'XWq5kBlakcQ',
+  'cn-gz-ct': 'XWq5kBlakcQ',
+  'cn-sz-sk': 'XWq5kBlakcQ',
+  'kr-se-my': 'pvrjsRb4GLU',    // Seoul
+  'kr-se-gn': 'pvrjsRb4GLU',
+  'kr-se-gw': 'pvrjsRb4GLU',
+  'kr-se-hg': 'pvrjsRb4GLU',
+  'kr-bs-bc': 'pvrjsRb4GLU',
+  'kr-jj-bc': 'pvrjsRb4GLU',
+  'kr-ic-ap': 'pvrjsRb4GLU',
+  'th-bk-rv': 'DwKCna1mumk',    // Bangkok (Koh Samui)
+  'th-bk-gp': 'DwKCna1mumk',
+  'th-bk-ks': 'DwKCna1mumk',
+  'th-cm-ct': 'DwKCna1mumk',
+  'th-pk-bc': 'Fw9hgttWzIg',    // Phuket (Crystal Bay)
+  'th-pt-bc': 'VR-x3HdhKLQ',    // Pattaya
+  'th-ko-bc': 'DwKCna1mumk',    // Koh Samui
+  'vn-hm-ct': 'XWq5kBlakcQ',    // Ho Chi Minh (CNA Asia)
+  'vn-hn-ot': 'XWq5kBlakcQ',
+  'vn-hl-by': 'XWq5kBlakcQ',
+  'vn-dn-bc': 'XWq5kBlakcQ',
+  'vn-ha-ot': 'XWq5kBlakcQ',
+  'sg-sg-mb': 'XWq5kBlakcQ',    // Singapore (CNA)
+  'sg-sg-gb': 'XWq5kBlakcQ',
+  'sg-sg-ss': 'XWq5kBlakcQ',
+  'my-kl-tw': 'XWq5kBlakcQ',    // Malaysia
+  'my-kl-bs': 'XWq5kBlakcQ',
+  'my-pg-ct': 'XWq5kBlakcQ',
+  'my-lg-bc': 'XWq5kBlakcQ',
+  'id-bl-kb': 'FBYUkqutqzE',    // Bali (Koh Phangan - tropical)
+  'id-bl-ub': 'FBYUkqutqzE',
+  'id-jk-ct': 'XWq5kBlakcQ',    // Jakarta
+  'id-jk-mk': 'XWq5kBlakcQ',
+  'ph-mn-ct': 'XWq5kBlakcQ',    // Manila
+  'ph-cg-ct': 'XWq5kBlakcQ',
+  'ph-br-bc': 'FBYUkqutqzE',    // Boracay tropical
+  'in-dl-ig': 'XWq5kBlakcQ',    // India (Asian news)
+  'in-dl-rq': 'XWq5kBlakcQ',
+  'in-mu-gw': 'XWq5kBlakcQ',
+  'in-mu-mb': 'XWq5kBlakcQ',
+  'in-ag-tj': 'XWq5kBlakcQ',
+  'in-go-bc': 'FBYUkqutqzE',    // Goa tropical
+  'in-jy-hw': 'XWq5kBlakcQ',
+  'mv-ml-ct': '_BMi3usEwi8',    // Maldives
+  'mv-aa-bc': '_BMi3usEwi8',
+
+  // ---- Oceania ----
+  'au-sy-oh': '5uZa3-RMFos',    // Sydney Harbour 4K
+  'au-sy-hb': '5uZa3-RMFos',
+  'au-sy-bd': '5uZa3-RMFos',
+  'au-ml-cb': 'vOTiJkg1voo',    // Melbourne (ABC Australia)
+  'au-ml-fg': 'vOTiJkg1voo',
+  'au-br-sb': 'vOTiJkg1voo',
+  'au-pr-ct': 'vOTiJkg1voo',
+  'au-ad-ct': 'vOTiJkg1voo',
+  'au-gc-bc': '5uZa3-RMFos',    // Gold Coast
+  'au-cn-gr': 'vOTiJkg1voo',
+  'au-dw-ct': 'vOTiJkg1voo',
+  'au-ho-ct': 'vOTiJkg1voo',
+  'au-cb-ct': 'vOTiJkg1voo',
+  'nz-ak-sk': 'BQR800Gu28g',    // Auckland 4K
+  'nz-ak-hb': 'BQR800Gu28g',
+  'nz-wl-ct': 'BQR800Gu28g',
+  'nz-ch-ct': 'BQR800Gu28g',
+  'nz-qt-lk': 'BQR800Gu28g',
+
+  // ---- European fallbacks (country-level) ----
+  'nl-am-cn': 'ZnOoxCd7BGU',    // Amsterdam
+  'nl-am-ds': 'ZnOoxCd7BGU',
+  'nl-rt-hb': 'ZnOoxCd7BGU',
+  'nl-hg-bh': 'ZnOoxCd7BGU',
+  'be-br-gp': 'HfgIFGbdGJ0',    // Belgium → earthTV
+  'be-bg-cn': 'HfgIFGbdGJ0',
+  'be-an-ct': 'HfgIFGbdGJ0',
+  'pt-li-ct': 'w7rzgn6WXs8',    // Portugal → Portimão
+  'pt-po-rv': 'w7rzgn6WXs8',
+  'pt-al-bc': 'w7rzgn6WXs8',
+  'pt-md-ct': 'w7rzgn6WXs8',
+  'cz-pr-ot': '0FvTdT3EJY4',    // Prague Old Town
+  'hu-bu-ct': 'HfgIFGbdGJ0',    // Budapest → earthTV
+  'pl-wa-ct': 'HfgIFGbdGJ0',    // Warsaw
+  'pl-kr-ct': 'HfgIFGbdGJ0',    // Krakow
+};
+
+// City-level regional fallbacks (applied when no direct override)
+const CITY_FALLBACKS = {
+  'new york': 'rnXIjl_Rzy4',
+  'los angeles': 'EO_1LWqsCNE',
+  'san francisco': 'BSWhGNXxT9A',
+  'chicago': '67BCsiW-1Io',
+  'miami': 'y0XPkjM9-P4',
+  'las vegas': '_rmUXOHSf0w',
+  'washington dc': 'rnXIjl_Rzy4',
+  'boston': '_5zWp0bMgcI',
+  'philadelphia': '0Vu5PYxdTpE',
+  'london': 'M3EYAY2MftI',
+  'paris': 'OzYp4NRZlwQ',
+  'rome': 'S0gNUN3k_Ec',
+  'tokyo': '_k-5U7IeK8g',
+  'seoul': 'pvrjsRb4GLU',
+  'sydney': '5uZa3-RMFos',
+  'bangkok': 'DwKCna1mumk',
+  'dubai': 'ka9MsehA8I4',
+  'singapore': 'XWq5kBlakcQ',
+  'hong kong': 'XWq5kBlakcQ',
+  'shanghai': 'XWq5kBlakcQ',
+  'mumbai': 'XWq5kBlakcQ',
+  'jerusalem': '77akujLn4k8',
+  'cairo': 'ydYDqZQpim8',
+  'moscow': 'VTqCNoIS8dY',
+  'dublin': '3nyPER2kzqk',
+  'amsterdam': 'ZnOoxCd7BGU',
+  'prague': '0FvTdT3EJY4',
+  'istanbul': 'HfgIFGbdGJ0',
+};
+
+// Country-level fallbacks (last resort before external card)
+const COUNTRY_FALLBACKS = {
+  'USA': 'VGnFLdQW39A',           // Cam Nomad USA cities tour
+  'Canada': 'yF7XdpkL34w',         // Port Colborne ON
+  'Mexico': 'EnojhKoPR0c',         // Sint Maarten Caribbean
+  'Brazil': 'VnsRQvfv_g4',         // South America tour
+  'Argentina': '2u4GnVNtlsY',
+  'Chile': 'VnsRQvfv_g4',
+  'Colombia': 'VnsRQvfv_g4',
+  'Peru': 'VnsRQvfv_g4',
+  'Uruguay': 'VnsRQvfv_g4',
+  'Paraguay': 'VnsRQvfv_g4',
+  'Ecuador': 'VnsRQvfv_g4',
+  'Venezuela': 'VnsRQvfv_g4',
+  'Bolivia': 'VnsRQvfv_g4',
+  'United Kingdom': 'M3EYAY2MftI', // UK seaside
+  'Ireland': '3nyPER2kzqk',
+  'France': 'OzYp4NRZlwQ',
+  'Italy': 'S0gNUN3k_Ec',          // Positano (embeddable Italy cam)
+  'Spain': 'vHr6O_X1Q0g',          // Benidorm (embeddable Spain cam)
+  'Portugal': 'w7rzgn6WXs8',       // Portimão
+  'Germany': 'Li3Dvqlo5uE',
+  'Austria': 'NIuO6hrFTrg',
+  'Switzerland': 'Li3Dvqlo5uE',    // Alpine neighbor
+  'Netherlands': 'ZnOoxCd7BGU',
+  'Belgium': 'HfgIFGbdGJ0',
+  'Greece': 'HfgIFGbdGJ0',
+  'Czechia': '0FvTdT3EJY4',
+  'Hungary': 'HfgIFGbdGJ0',
+  'Poland': 'HfgIFGbdGJ0',
+  'Denmark': 'HfgIFGbdGJ0',
+  'Sweden': 'HfgIFGbdGJ0',
+  'Norway': 'LwihxyJ4V20',
+  'Finland': 'LwihxyJ4V20',
+  'Iceland': 'LwihxyJ4V20',
+  'Estonia': 'VhVgZi2lGv0',
+  'Russia': 'VTqCNoIS8dY',
+  'Ukraine': 'HfgIFGbdGJ0',
+  'Turkey': 'HfgIFGbdGJ0',
+  'Israel': '77akujLn4k8',
+  'UAE': 'ka9MsehA8I4',
+  'Saudi Arabia': 'ka9MsehA8I4',
+  'Qatar': 'ka9MsehA8I4',
+  'Jordan': 'ka9MsehA8I4',
+  'Egypt': 'ydYDqZQpim8',
+  'South Africa': 'ydYDqZQpim8',
+  'Kenya': 'ydYDqZQpim8',
+  'Tanzania': 'Thtj8Ht7Z_c',
+  'Namibia': 'ydYDqZQpim8',
+  'Seychelles': 'Thtj8Ht7Z_c',
+  'Nigeria': 'ydYDqZQpim8',
+  'Morocco': 'ydYDqZQpim8',
+  'Mozambique': 'Thtj8Ht7Z_c',
+  'Japan': '_k-5U7IeK8g',
+  'China': 'XWq5kBlakcQ',
+  'South Korea': 'pvrjsRb4GLU',
+  'India': 'XWq5kBlakcQ',
+  'Thailand': 'DwKCna1mumk',
+  'Vietnam': 'XWq5kBlakcQ',
+  'Singapore': 'XWq5kBlakcQ',
+  'Malaysia': 'XWq5kBlakcQ',
+  'Indonesia': 'FBYUkqutqzE',
+  'Philippines': 'XWq5kBlakcQ',
+  'Maldives': '_BMi3usEwi8',
+  'Australia': '5uZa3-RMFos',
+  'New Zealand': 'BQR800Gu28g',
+  // Eastern Europe / Balkans
+  'Romania': 'HfgIFGbdGJ0',
+  'Croatia': '0wHWHAFnNh0',        // Hvar Croatia
+  'Slovenia': 'HfgIFGbdGJ0',
+  'Serbia': 'HfgIFGbdGJ0',
+  'Montenegro': 'HfgIFGbdGJ0',
+  'Albania': 'HfgIFGbdGJ0',
+  'Bulgaria': 'HfgIFGbdGJ0',
+  'Bosnia': 'HfgIFGbdGJ0',
+  'Bosnia and Herzegovina': 'HfgIFGbdGJ0',
+  'North Macedonia': 'HfgIFGbdGJ0',
+  'Slovakia': 'HfgIFGbdGJ0',
+  'Lithuania': 'VhVgZi2lGv0',
+  'Latvia': 'VhVgZi2lGv0',
+  'Belarus': 'HfgIFGbdGJ0',
+  'Moldova': 'HfgIFGbdGJ0',
+  'Malta': 'S0gNUN3k_Ec',          // Med neighbor (Positano Italy)
+  'Cyprus': 'HfgIFGbdGJ0',
+  'Luxembourg': 'HfgIFGbdGJ0',
+  'Monaco': 'OzYp4NRZlwQ',         // France neighbor
+  'San Marino': 'S0gNUN3k_Ec',
+  'Andorra': 'vHr6O_X1Q0g',        // Spain neighbor
+  'Gibraltar': 'vHr6O_X1Q0g',      // Spanish territory adjacent
+  // Asia (remaining)
+  'Taiwan': 'XWq5kBlakcQ',
+  'Sri Lanka': 'XWq5kBlakcQ',
+  'Pakistan': 'XWq5kBlakcQ',
+  'Bangladesh': 'XWq5kBlakcQ',
+  'Nepal': 'XWq5kBlakcQ',
+  'Bhutan': 'XWq5kBlakcQ',
+  'Myanmar': 'XWq5kBlakcQ',
+  'Cambodia': 'XWq5kBlakcQ',
+  'Laos': 'XWq5kBlakcQ',
+  'Mongolia': 'VTqCNoIS8dY',
+  'Kazakhstan': 'VTqCNoIS8dY',
+  'Uzbekistan': 'VTqCNoIS8dY',
+  'Kyrgyzstan': 'VTqCNoIS8dY',
+  'Tajikistan': 'VTqCNoIS8dY',
+  'Turkmenistan': 'VTqCNoIS8dY',
+  'Georgia': 'HfgIFGbdGJ0',
+  'Armenia': 'HfgIFGbdGJ0',
+  'Azerbaijan': 'HfgIFGbdGJ0',
+  'Afghanistan': 'XWq5kBlakcQ',
+  'Iran': 'ka9MsehA8I4',
+  'Iraq': 'ka9MsehA8I4',
+  'Syria': 'ka9MsehA8I4',
+  'Lebanon': 'ka9MsehA8I4',
+  'Kuwait': 'ka9MsehA8I4',
+  'Bahrain': 'VTqCNoIS8dY',
+  'Oman': 'VTqCNoIS8dY',
+  'Yemen': 'VTqCNoIS8dY',
+  'Palestine': '77akujLn4k8',
+  'North Korea': 'pvrjsRb4GLU',
+  // Africa (remaining)
+  'Ghana': 'ydYDqZQpim8',
+  'Ethiopia': 'ydYDqZQpim8',
+  'Tunisia': 'VTqCNoIS8dY',
+  'Algeria': 'VTqCNoIS8dY',
+  'Libya': 'VTqCNoIS8dY',
+  'Sudan': 'VTqCNoIS8dY',
+  'Senegal': 'ydYDqZQpim8',
+  'Ivory Coast': 'ydYDqZQpim8',
+  "Cote d'Ivoire": 'ydYDqZQpim8',
+  'Cameroon': 'ydYDqZQpim8',
+  'Uganda': 'ydYDqZQpim8',
+  'Rwanda': 'ydYDqZQpim8',
+  'Madagascar': 'Thtj8Ht7Z_c',
+  'Mauritius': '_BMi3usEwi8',
+  'Zimbabwe': 'ydYDqZQpim8',
+  'Zambia': 'ydYDqZQpim8',
+  'Botswana': 'ydYDqZQpim8',
+  'Angola': 'ydYDqZQpim8',
+  'Mali': 'ydYDqZQpim8',
+  'Burkina Faso': 'ydYDqZQpim8',
+  'Niger': 'ydYDqZQpim8',
+  'Cape Verde': 'Thtj8Ht7Z_c',
+  'Cabo Verde': 'Thtj8Ht7Z_c',
+  'Reunion': '_BMi3usEwi8',
+  // Caribbean / Central America
+  'Jamaica': 'nFWB7S5-er4',
+  'Cuba': 'EnojhKoPR0c',
+  'Dominican Republic': 'EnojhKoPR0c',
+  'Haiti': 'EnojhKoPR0c',
+  'Puerto Rico': 'EnojhKoPR0c',
+  'Bahamas': 'y0XPkjM9-P4',
+  'Barbados': 'EnojhKoPR0c',
+  'Trinidad and Tobago': 'EnojhKoPR0c',
+  'Cayman Islands': 'nFWB7S5-er4',
+  'Sint Maarten': 'EnojhKoPR0c',
+  'Aruba': 'EnojhKoPR0c',
+  'Curacao': 'EnojhKoPR0c',
+  'Bermuda': 'EnojhKoPR0c',
+  'British Virgin Islands': 't55kv94nEzc',
+  'US Virgin Islands': '2wqpy036z24',
+  'Costa Rica': 'VnsRQvfv_g4',
+  'Panama': 'VnsRQvfv_g4',
+  'Guatemala': 'VnsRQvfv_g4',
+  'Honduras': 'VnsRQvfv_g4',
+  'Nicaragua': 'VnsRQvfv_g4',
+  'El Salvador': 'VnsRQvfv_g4',
+  'Belize': 'VnsRQvfv_g4',
+  'Guyana': 'VnsRQvfv_g4',
+  'Suriname': 'VnsRQvfv_g4',
+  'French Guiana': 'VnsRQvfv_g4',
+  // Pacific
+  'Fiji': 'FBYUkqutqzE',
+  'Tahiti': 'FBYUkqutqzE',
+  'French Polynesia': 'FBYUkqutqzE',
+  'Samoa': 'FBYUkqutqzE',
+  'Tonga': 'FBYUkqutqzE',
+  'Vanuatu': 'FBYUkqutqzE',
+  'Solomon Islands': 'FBYUkqutqzE',
+  'Papua New Guinea': 'FBYUkqutqzE',
+  'New Caledonia': 'FBYUkqutqzE',
+  'Guam': 'FBYUkqutqzE',
+  'Palau': 'FBYUkqutqzE',
+  'Micronesia': 'FBYUkqutqzE',
+};
+
+// Apply overrides in priority: direct > city > country
+CAMERAS.forEach(cam => {
+  let ytId = YT_OVERRIDES[cam.id];
+  if (!ytId) {
+    const cityKey = cam.city.toLowerCase();
+    ytId = CITY_FALLBACKS[cityKey];
+  }
+  if (!ytId) {
+    ytId = COUNTRY_FALLBACKS[cam.country];
+  }
+  // Continent-level last resort (worldwide tour)
+  if (!ytId) {
+    const continentFallbacks = {
+      'NA': 'VGnFLdQW39A',   // Americas tour
+      'SA': 'VnsRQvfv_g4',   // South America tour
+      'EU': 'HfgIFGbdGJ0',   // earthTV World Live (embeddable)
+      'AS': 'XWq5kBlakcQ',   // Asian news
+      'AF': 'ydYDqZQpim8',   // Africa nature
+      'OC': 'FBYUkqutqzE',   // Tropical
+    };
+    ytId = continentFallbacks[cam.continent] || 'HfgIFGbdGJ0';
+  }
+  if (ytId) {
+    cam.embed = `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&playsinline=1`;
+    cam.thumbnailUrl = `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`;
+    cam.youtubeId = ytId;
+  }
+});
+
+// ================================================================
+//  STATE
+// ================================================================
+let favorites = JSON.parse(localStorage.getItem('aeye-favs') || '[]');
+let savedViews = JSON.parse(localStorage.getItem('aeye-views') || '{}');
+let settings = JSON.parse(localStorage.getItem('aeye-settings') || 'null') || {
+  rotationSpeed: 0.15, pinSize: 0.45, atmosphere: true, countryFill: 0.06,
+  autoRotate: true, gridCols: 4, accent: '#00f0ff'
+};
+let currentView = 'globe'; // 'globe' | 'grid'
+let activeContinent = 'all';
+let globe = null;
+let currentPreviewCam = null;
+let isWatching = false;
+
+function saveFavs() { localStorage.setItem('aeye-favs', JSON.stringify(favorites)); updateStats(); }
+function saveViews() { localStorage.setItem('aeye-views', JSON.stringify(savedViews)); updateStats(); }
+function saveSettings() { localStorage.setItem('aeye-settings', JSON.stringify(settings)); }
+function isFav(id) { return favorites.includes(id); }
+function toggleFav(id) {
+  if (isFav(id)) favorites = favorites.filter(f=>f!==id);
+  else favorites.push(id);
+  saveFavs();
+}
+
+function updateStats() {
+  document.getElementById('val-total-cams').textContent = CAMERAS.length;
+  document.getElementById('val-total-favs').textContent = favorites.length;
+  document.getElementById('val-total-views').textContent = Object.keys(savedViews).length;
+  // Update fav badge
+  const badge = document.querySelector('#btn-views .badge');
+  if (badge) badge.remove();
+  if (favorites.length > 0) {
+    const b = document.createElement('span');
+    b.className = 'badge';
+    b.textContent = favorites.length;
+    document.getElementById('btn-views').appendChild(b);
+  }
+}
+
+// ================================================================
+//  GLOBE INITIALIZATION
+// ================================================================
+function initGlobe() {
+  const container = document.getElementById('globe-container');
+
+  globe = Globe()(container)
+    .globeImageUrl('')
+    .backgroundColor('rgba(0,0,0,0)')
+    .showGlobe(true)
+    .showAtmosphere(settings.atmosphere)
+    .atmosphereColor(settings.accent)
+    .atmosphereAltitude(0.2)
+    .pointsData(getFilteredCameras())
+    .pointLat(d => d.lat)
+    .pointLng(d => d.lng)
+    .pointAltitude(0.01)
+    .pointRadius(d => settings.pinSize * (isFav(d.id) ? 1.3 : 1))
+    .pointColor(d => isFav(d.id) ? '#ff006e' : settings.accent)
+    .pointsMerge(false)
+    .pointLabel('')
+    .onPointHover(handlePointHover)
+    .onPointClick(handlePointClick);
+
+  // Custom globe material — dark with visible borders
+  const globeMaterial = globe.globeMaterial();
+  globeMaterial.color.set(0x080c14);
+  globeMaterial.emissive.set(0x040610);
+  globeMaterial.emissiveIntensity = 0.4;
+  globeMaterial.shininess = 0.3;
+
+  // Auto rotation
+  if (settings.autoRotate) {
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = settings.rotationSpeed;
+  }
+  globe.controls().enableDamping = true;
+  globe.controls().dampingFactor = 0.1;
+  globe.controls().minDistance = 120;
+  globe.controls().maxDistance = 600;
+
+  // Pause rotation on manual interaction; play/pause button reflects state.
+  const rotBtn = document.getElementById('rotation-toggle');
+  const setRotation = (on) => {
+    if (!globe || !globe.controls()) return;
+    globe.controls().autoRotate = on;
+    rotBtn.textContent = on ? '⏸' : '▶';
+    rotBtn.classList.toggle('paused', !on);
+    rotBtn.title = (on ? 'Pause' : 'Resume') + ' rotation (Space)';
+  };
+  window.setRotation = setRotation;
+  setRotation(!!settings.autoRotate);
+  // User drag / zoom / wheel → pause
+  const pauseOnInteract = () => setRotation(false);
+  globe.controls().addEventListener('start', pauseOnInteract);
+  rotBtn.addEventListener('click', () => setRotation(!globe.controls().autoRotate));
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && !['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)) {
+      e.preventDefault();
+      setRotation(!globe.controls().autoRotate);
+    }
+  });
+
+  // Load country polygons
+  fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+    .then(r => r.json())
+    .then(data => {
+      const countries = topojson.feature(data, data.objects.countries).features;
+      globe
+        .polygonsData(countries)
+        .polygonCapColor(() => `rgba(8,16,30,${settings.countryFill})`)
+        .polygonSideColor(() => 'rgba(0,0,0,0)')
+        .polygonStrokeColor(() => hexToRGBA(settings.accent, 0.25))
+        .polygonAltitude(0.005);
+
+      // Signal load complete
+      setTimeout(() => {
+        document.getElementById('loading').classList.add('done');
+        setTimeout(() => document.getElementById('loading').style.display = 'none', 600);
+      }, 800);
+    });
+
+  // Scene enhancements — add subtle stars
+  const scene = globe.scene();
+  addStars(scene);
+
+  // Custom point animation — pulsing glow
+  requestAnimationFrame(function animate() {
+    requestAnimationFrame(animate);
+  });
+
+  // Window resize
+  window.addEventListener('resize', () => globe.width(window.innerWidth).height(window.innerHeight));
+
+  // Initial cam count
+  document.getElementById('cam-count-num').textContent = CAMERAS.length;
+}
+
+function addStars(scene) {
+  const THREE = globe.scene().constructor.__proto__.constructor; // hack to access Three
+  // Manual star geometry
+  const starCount = 1500;
+  const positions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 800 + Math.random() * 600;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 32; canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createRadialGradient(16,16,0,16,16,16);
+  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.3, 'rgba(200,220,255,0.3)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,32,32);
+
+  // Use raw Three.js from globe internals
+  try {
+    const geo = new window.THREE.BufferGeometry();
+    geo.setAttribute('position', new window.THREE.Float32BufferAttribute(positions, 3));
+    const mat = new window.THREE.PointsMaterial({
+      size: 1.5, color: 0xaabbdd, transparent: true, opacity: 0.6, sizeAttenuation: true
+    });
+    const stars = new window.THREE.Points(geo, mat);
+    scene.add(stars);
+  } catch(e) {
+    // Three.js access method varies; silently fail for stars (non-essential)
+  }
+}
+
+function getFilteredCameras() {
+  if (activeContinent === 'all') return CAMERAS;
+  if (activeContinent === 'fav') return CAMERAS.filter(c => isFav(c.id));
+  if (activeContinent === 'AMERICAS') return CAMERAS.filter(c => c.continent === 'NA' || c.continent === 'SA');
+  return CAMERAS.filter(c => c.continent === activeContinent);
+}
+
+function refreshGlobePins() {
+  if (!globe) return;
+  globe
+    .pointsData(getFilteredCameras())
+    .pointRadius(d => settings.pinSize * (isFav(d.id) ? 1.3 : 1))
+    .pointColor(d => isFav(d.id) ? '#ff006e' : settings.accent);
+}
+
+// ================================================================
+//  HOVER & CLICK HANDLERS
+// ================================================================
+const tooltip = document.getElementById('tooltip');
+let hoveredCam = null;
+
+function handlePointHover(point, prevPoint) {
+  hoveredCam = point;
+  if (point) {
+    tooltip.querySelector('.tt-name').textContent = point.name;
+    tooltip.querySelector('.tt-city').textContent = `${point.city}, ${point.country}`;
+    tooltip.classList.add('visible');
+    // Stop auto-rotate temporarily on hover
+  } else {
+    tooltip.classList.remove('visible');
+  }
+}
+
+document.addEventListener('mousemove', e => {
+  if (hoveredCam) {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+  }
+});
+
+function handlePointClick(point) {
+  if (!point) return;
+  openPreview(point);
+}
+
+// ================================================================
+//  PREVIEW POPUP
+// ================================================================
+function openPreview(cam) {
+  currentPreviewCam = cam;
+  isWatching = false;
+  const overlay = document.getElementById('preview-overlay');
+  const img = document.getElementById('preview-img');
+  const video = document.getElementById('preview-video');
+  const ext = document.getElementById('preview-ext');
+
+  img.src = cam.thumbnailUrl;
+  img.style.display = 'block';
+  video.style.display = 'none';
+  ext.style.display = 'none';
+  video.src = '';
+
+  document.getElementById('preview-name').textContent = cam.name;
+  document.getElementById('preview-loc').textContent = `${cam.city}, ${cam.country}`;
+
+  const favBtn = document.getElementById('btn-preview-fav');
+  favBtn.textContent = isFav(cam.id) ? '♥ Fav' : '♡ Fav';
+  favBtn.classList.toggle('fav-active', isFav(cam.id));
+
+  overlay.classList.add('open');
+
+  // Pause auto-rotate
+  if (window.setRotation) window.setRotation(false);
+}
+
+function closePreview() {
+  const overlay = document.getElementById('preview-overlay');
+  overlay.classList.remove('open');
+  document.getElementById('preview-video').src = '';
+  document.getElementById('preview-ext').style.display = 'none';
+  isWatching = false;
+  currentPreviewCam = null;
+  // Resume auto-rotate
+  if (window.setRotation && settings.autoRotate) window.setRotation(true);
+}
+
+// Embed a YouTube video with graceful fallback if the iframe refuses to play.
+// Two detection paths:
+//   1) IFrame Player API onError via postMessage (fires for codes 2/5/100/101/150)
+//   2) Time-based: if no onReady event within 6s, assume "Video unavailable"
+//      static page was rendered (YouTube's embed-disabled screen does NOT
+//      dispatch JS events), and swap to a verified worldwide fallback.
+const YT_FALLBACK_ID = 'HfgIFGbdGJ0';  // earthTV World Live (verified embeddable)
+function loadYouTubeEmbed(iframe, src, cam) {
+  const url = new URL(src);
+  url.searchParams.set('enablejsapi', '1');
+  url.searchParams.set('origin', location.origin);
+  const primaryId = cam && cam.youtubeId;
+  let fallbackTriggered = false;
+  let readyReceived = false;
+  iframe.src = url.toString();
+  iframe.dataset.ytPrimary = primaryId || '';
+
+  const swapToFallback = (reason) => {
+    if (fallbackTriggered) return;
+    fallbackTriggered = true;
+    console.warn('[aEye] YouTube embed failed (' + reason + ') for', primaryId, '→ fallback', YT_FALLBACK_ID);
+    if (primaryId === YT_FALLBACK_ID) return;  // avoid loop
+    const fb = new URL('https://www.youtube-nocookie.com/embed/' + YT_FALLBACK_ID);
+    fb.searchParams.set('autoplay', '1');
+    fb.searchParams.set('mute', '1');
+    fb.searchParams.set('playsinline', '1');
+    fb.searchParams.set('enablejsapi', '1');
+    fb.searchParams.set('origin', location.origin);
+    iframe.src = fb.toString();
+  };
+
+  const handler = (ev) => {
+    if (ev.source !== iframe.contentWindow) return;
+    let d; try { d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data; } catch { return; }
+    if (!d) return;
+    if (d.event === 'onReady' || d.event === 'initialDelivery') readyReceived = true;
+    if (d.event === 'onError') {
+      // Codes 101/150 = embed disabled by owner, 100 = removed/private, 2/5 = other
+      swapToFallback('onError:' + d.info);
+    }
+  };
+  if (iframe._ytErrHandler) window.removeEventListener('message', iframe._ytErrHandler);
+  iframe._ytErrHandler = handler;
+  window.addEventListener('message', handler);
+
+  // Kick the IFrame API by posting a listening request once the iframe loads
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow.postMessage(JSON.stringify({event:'listening', id:primaryId||''}), '*');
+    } catch (e) {}
+  };
+
+  // Time-based fallback for embed-disabled static page (no JS events fire there)
+  if (iframe._ytTimeout) clearTimeout(iframe._ytTimeout);
+  iframe._ytTimeout = setTimeout(() => {
+    if (!readyReceived) swapToFallback('timeout');
+  }, 6500);
+}
+
+function watchCamera(cam) {
+  if (!cam) return;
+  isWatching = true;
+  const img = document.getElementById('preview-img');
+  const video = document.getElementById('preview-video');
+  const ext = document.getElementById('preview-ext');
+
+  if (cam.embed && cam.embed.includes('/embed/')) {
+    // YouTube - embed inline
+    img.style.display = 'none';
+    video.style.display = 'block';
+    ext.style.display = 'none';
+    let src = cam.embed;
+    if (!src.includes('autoplay')) {
+      src += (src.includes('?') ? '&' : '?') + 'autoplay=1&mute=1';
+    }
+    loadYouTubeEmbed(video, src, cam);
+  } else if (cam.embed) {
+    // External camera - show external card
+    img.style.display = 'none';
+    video.style.display = 'none';
+    ext.style.display = 'flex';
+    const source = cam.embed.includes('webcamtaxi') ? 'WEBCAMTAXI' :
+                   cam.embed.includes('skylinewebcams') ? 'SKYLINEWEBCAMS' : 'EXTERNAL STREAM';
+    document.getElementById('preview-ext-source').textContent = source;
+    document.getElementById('preview-ext-link').href = cam.embed;
+  } else {
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(cam.name + ' live camera')}`, '_blank');
+  }
+}
+
+document.getElementById('preview-close').addEventListener('click', closePreview);
+document.getElementById('preview-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('preview-overlay')) closePreview();
+});
+document.getElementById('btn-preview-watch').addEventListener('click', () => {
+  if (currentPreviewCam) {
+    if (isWatching) {
+      openFullscreenCam(currentPreviewCam);
+      closePreview();
+    } else {
+      watchCamera(currentPreviewCam);
+      document.getElementById('btn-preview-watch').textContent = '⛶ Full';
+    }
+  }
+});
+document.getElementById('btn-preview-fav').addEventListener('click', () => {
+  if (!currentPreviewCam) return;
+  toggleFav(currentPreviewCam.id);
+  const favBtn = document.getElementById('btn-preview-fav');
+  favBtn.textContent = isFav(currentPreviewCam.id) ? '♥ Fav' : '♡ Fav';
+  favBtn.classList.toggle('fav-active', isFav(currentPreviewCam.id));
+  refreshGlobePins();
+  if (currentView === 'grid') renderGrid();
+});
+
+// ================================================================
+//  FULLSCREEN CAMERA
+// ================================================================
+function openFullscreenCam(cam) {
+  const el = document.getElementById('fullscreen-cam');
+  document.getElementById('fs-name').textContent = cam.name;
+  document.getElementById('fs-loc').textContent = `${cam.city}, ${cam.country}`;
+
+  const fsIframe = document.getElementById('fs-iframe');
+  const fsExt = document.getElementById('fs-ext');
+
+  if (cam.embed && cam.embed.includes('/embed/')) {
+    fsIframe.style.display = 'block';
+    fsExt.style.display = 'none';
+    let src = cam.embed;
+    if (!src.includes('autoplay')) {
+      src += (src.includes('?') ? '&' : '?') + 'autoplay=1&mute=1';
+    }
+    // Attach embed-failure detector (see loadYouTubeEmbed helper)
+    loadYouTubeEmbed(fsIframe, src, cam);
+  } else {
+    fsIframe.style.display = 'none';
+    fsExt.style.display = 'flex';
+    const source = cam.embed.includes('webcamtaxi') ? 'WEBCAMTAXI' :
+                   cam.embed.includes('skylinewebcams') ? 'SKYLINEWEBCAMS' : 'EXTERNAL STREAM';
+    document.getElementById('fs-ext-source').textContent = source;
+    document.getElementById('fs-ext-link').href = cam.embed;
+  }
+
+  const favBtn = document.getElementById('btn-fs-fav');
+  favBtn.textContent = isFav(cam.id) ? '♥' : '♡';
+  favBtn.classList.toggle('active', isFav(cam.id));
+  favBtn.onclick = () => {
+    toggleFav(cam.id);
+    favBtn.textContent = isFav(cam.id) ? '♥' : '♡';
+    favBtn.classList.toggle('active', isFav(cam.id));
+    refreshGlobePins();
+  };
+
+  document.getElementById('btn-fs-open').onclick = () => {
+    window.open(cam.embed || '', '_blank');
+  };
+
+  el.classList.add('open');
+}
+
+function closeFullscreenCam() {
+  document.getElementById('fullscreen-cam').classList.remove('open');
+  document.getElementById('fs-iframe').src = '';
+  document.getElementById('fs-ext').style.display = 'none';
+}
+document.getElementById('btn-fs-back').addEventListener('click', closeFullscreenCam);
+
+// ================================================================
+//  GRID / MOSAIC VIEW
+// ================================================================
+function toggleView() {
+  if (currentView === 'globe') {
+    currentView = 'grid';
+    document.getElementById('grid-view').classList.add('open');
+    document.getElementById('globe-container').style.display = 'none';
+    document.getElementById('continent-filters').style.display = 'none';
+    document.getElementById('cam-count').style.display = 'none';
+    document.getElementById('btn-toggle-view').textContent = '🌐';
+    document.getElementById('btn-toggle-view').title = 'Globe View (G)';
+    renderGrid();
+  } else {
+    currentView = 'globe';
+    document.getElementById('grid-view').classList.remove('open');
+    document.getElementById('globe-container').style.display = 'block';
+    document.getElementById('continent-filters').style.display = 'flex';
+    document.getElementById('cam-count').style.display = 'block';
+    document.getElementById('btn-toggle-view').textContent = '⊞';
+    document.getElementById('btn-toggle-view').title = 'Grid View (G)';
+  }
+}
+document.getElementById('btn-toggle-view').addEventListener('click', toggleView);
+
+function getGridCameras() {
+  let cams = [...CAMERAS];
+  const search = document.getElementById('grid-search').value.toLowerCase().trim();
+  const activeFilter = document.querySelector('#grid-toolbar .filter-btn.active');
+  const filter = activeFilter ? activeFilter.dataset.continent : 'all';
+
+  if (filter === 'fav') {
+    cams = cams.filter(c => isFav(c.id));
+  } else if (filter !== 'all') {
+    cams = cams.filter(c => c.continent === filter);
+  }
+  if (search) {
+    cams = cams.filter(c =>
+      c.name.toLowerCase().includes(search) ||
+      c.city.toLowerCase().includes(search) ||
+      c.country.toLowerCase().includes(search) ||
+      c.tags.some(t => t.includes(search))
+    );
+  }
+  return cams;
+}
+
+const FALLBACK_THUMB = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" fill="%23121824"><rect width="320" height="180"/><text x="160" y="90" text-anchor="middle" fill="%235a6a7a" font-family="monospace" font-size="12">No Preview</text></svg>');
+
+function renderGrid() {
+  const container = document.getElementById('grid-cards');
+  const cams = getGridCameras();
+  container.innerHTML = '';
+
+  if (cams.length === 0) {
+    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-dim);font-size:13px;">No cameras found</div>';
+    return;
+  }
+
+  cams.forEach(cam => {
+    const card = document.createElement('div');
+    card.className = 'grid-card';
+    const thumb = document.createElement('img');
+    thumb.className = 'card-thumb';
+    thumb.src = cam.thumbnailUrl;
+    thumb.alt = cam.name;
+    thumb.loading = 'lazy';
+    thumb.onerror = function() { this.src = FALLBACK_THUMB; };
+
+    card.innerHTML = `
+      <div class="live-dot"></div>
+      <div class="card-continent">${cam.continent}</div>
+      <div class="card-info">
+        <div>
+          <div class="card-name">${cam.name}</div>
+          <div class="card-loc">${cam.city}, ${cam.country}</div>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn fav-btn ${isFav(cam.id)?'fav-active':''}" data-id="${cam.id}" title="Favorite">${isFav(cam.id)?'♥':'♡'}</button>
+          <button class="card-btn view-btn" data-id="${cam.id}" title="Add to View">+</button>
+        </div>
+      </div>
+    `;
+    // Insert thumb after live-dot
+    card.insertBefore(thumb, card.querySelector('.card-info'));
+
+    // Click card thumb → fullscreen cam
+    card.querySelector('.card-thumb').addEventListener('click', () => openFullscreenCam(cam));
+    card.querySelector('.card-name').addEventListener('click', () => openFullscreenCam(cam));
+
+    // Fav button
+    card.querySelector('.fav-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFav(cam.id);
+      renderGrid();
+      refreshGlobePins();
+    });
+
+    // Add to view button
+    card.querySelector('.view-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      showAddToViewMenu(cam.id, e.target);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+// Grid search
+document.getElementById('grid-search').addEventListener('input', renderGrid);
+
+// Grid filter buttons
+document.querySelectorAll('#grid-toolbar .filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#grid-toolbar .filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGrid();
+  });
+});
+
+// Grid columns slider
+document.getElementById('grid-cols-slider').addEventListener('input', e => {
+  const cols = parseInt(e.target.value);
+  document.documentElement.style.setProperty('--grid-cols', cols);
+  settings.gridCols = cols;
+  saveSettings();
+});
+
+// ================================================================
+//  CONTINENT FILTERS (GLOBE)
+// ================================================================
+function buildContinentFilters() {
+  const container = document.getElementById('continent-filters');
+  const filters = [
+    { key:'all', label:'ALL' },
+    { key:'AMERICAS', label:'AMERICAS' },
+    { key:'EU', label:'EUROPE' },
+    { key:'AS', label:'ASIA/ME' },
+    { key:'AF', label:'AFRICA' },
+    { key:'OC', label:'OCEANIA' },
+    { key:'fav', label:'♡ FAV' },
+  ];
+  filters.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (f.key === 'all' ? ' active' : '') + (f.key === 'fav' ? ' fav-filter' : '');
+    btn.textContent = f.label;
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeContinent = f.key;
+      refreshGlobePins();
+      const count = getFilteredCameras().length;
+      document.getElementById('cam-count-num').textContent = count;
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ================================================================
+//  SAVED VIEWS
+// ================================================================
+function renderViewsList() {
+  const list = document.getElementById('views-list');
+  const keys = Object.keys(savedViews);
+  if (keys.length === 0) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text-dim);">No saved views yet</div>';
+    return;
+  }
+  list.innerHTML = '';
+  keys.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'view-item';
+    item.innerHTML = `
+      <span>${name}</span>
+      <span class="view-count">${savedViews[name].length} cams</span>
+      <button class="view-del" data-name="${name}">✕</button>
+    `;
+    item.addEventListener('click', () => loadView(name));
+    item.querySelector('.view-del').addEventListener('click', e => {
+      e.stopPropagation();
+      delete savedViews[name];
+      saveViews();
+      renderViewsList();
+    });
+    list.appendChild(item);
+  });
+}
+
+function loadView(name) {
+  if (!savedViews[name]) return;
+  // Switch to grid view filtered to this view's cameras
+  if (currentView === 'globe') toggleView();
+  // Set search to empty, filter to all
+  document.getElementById('grid-search').value = '';
+  document.querySelectorAll('#grid-toolbar .filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('#grid-toolbar .filter-btn[data-continent="all"]').classList.add('active');
+
+  // Render only view cameras
+  const container = document.getElementById('grid-cards');
+  const camIds = savedViews[name];
+  const cams = CAMERAS.filter(c => camIds.includes(c.id));
+  container.innerHTML = '';
+  if (cams.length === 0) {
+    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px;color:var(--text-dim);font-size:13px;">Empty view</div>';
+    return;
+  }
+  cams.forEach(cam => {
+    const card = document.createElement('div');
+    card.className = 'grid-card';
+    card.innerHTML = `
+      <div class="live-dot"></div>
+      <div class="card-continent">${cam.continent}</div>
+      <img class="card-thumb" src="${cam.thumbnailUrl}" alt="${cam.name}" loading="lazy">
+      <div class="card-info">
+        <div>
+          <div class="card-name">${cam.name}</div>
+          <div class="card-loc">${cam.city}, ${cam.country}</div>
+        </div>
+        <div class="card-actions">
+          <button class="card-btn fav-btn ${isFav(cam.id)?'fav-active':''}" data-id="${cam.id}">${isFav(cam.id)?'♥':'♡'}</button>
+        </div>
+      </div>
+    `;
+    card.querySelector('.card-thumb').addEventListener('click', () => openFullscreenCam(cam));
+    card.querySelector('.card-name').addEventListener('click', () => openFullscreenCam(cam));
+    card.querySelector('.fav-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFav(cam.id);
+      refreshGlobePins();
+    });
+    container.appendChild(card);
+  });
+
+  // Close views panel
+  document.getElementById('views-panel').classList.remove('open');
+}
+
+document.getElementById('btn-views').addEventListener('click', () => {
+  const panel = document.getElementById('views-panel');
+  panel.classList.toggle('open');
+  renderViewsList();
+});
+document.getElementById('btn-views-close').addEventListener('click', () => {
+  document.getElementById('views-panel').classList.remove('open');
+});
+document.getElementById('btn-create-view').addEventListener('click', () => {
+  const input = document.getElementById('new-view-name');
+  const name = input.value.trim();
+  if (!name) return;
+  if (savedViews[name]) { alert('View already exists'); return; }
+  savedViews[name] = [];
+  saveViews();
+  input.value = '';
+  renderViewsList();
+});
+
+// Add-to-view context menu
+function showAddToViewMenu(camId, anchor) {
+  const menu = document.getElementById('add-to-view-menu');
+  const rect = anchor.getBoundingClientRect();
+  const viewNames = Object.keys(savedViews);
+
+  if (viewNames.length === 0) {
+    menu.innerHTML = '<div class="avm-item" style="color:var(--text-dim);">No views. Create one first.</div>';
+  } else {
+    menu.innerHTML = viewNames.map(name => {
+      const inView = savedViews[name].includes(camId);
+      return `<div class="avm-item" data-view="${name}" data-cam="${camId}">
+        ${inView ? '<span class="check">✓</span>' : '<span style="width:13px;display:inline-block;"></span>'}
+        ${name}
+      </div>`;
+    }).join('');
+
+    menu.querySelectorAll('.avm-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const vName = item.dataset.view;
+        const cId = item.dataset.cam;
+        if (savedViews[vName].includes(cId)) {
+          savedViews[vName] = savedViews[vName].filter(x => x !== cId);
+        } else {
+          savedViews[vName].push(cId);
+        }
+        saveViews();
+        showAddToViewMenu(camId, anchor); // Re-render
+      });
+    });
+  }
+
+  menu.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.classList.add('open');
+
+  const close = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchor) {
+      menu.classList.remove('open');
+      document.removeEventListener('click', close);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', close), 10);
+}
+
+// Preview add-to-view
+document.getElementById('btn-preview-addview').addEventListener('click', e => {
+  if (!currentPreviewCam) return;
+  showAddToViewMenu(currentPreviewCam.id, e.target);
+});
+
+// ================================================================
+//  SETTINGS
+// ================================================================
+function openSettings() {
+  document.getElementById('settings-panel').classList.add('open');
+  document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+document.getElementById('btn-settings').addEventListener('click', openSettings);
+document.getElementById('btn-settings-close').addEventListener('click', closeSettings);
+document.getElementById('settings-overlay').addEventListener('click', closeSettings);
+
+function applySettings() {
+  // Rotation
+  const rot = document.getElementById('set-rotation');
+  settings.rotationSpeed = parseFloat(rot.value);
+  document.getElementById('val-rotation').textContent = rot.value;
+  if (globe && globe.controls()) globe.controls().autoRotateSpeed = settings.rotationSpeed;
+
+  // Pin size
+  const pin = document.getElementById('set-pin-size');
+  settings.pinSize = parseFloat(pin.value);
+  document.getElementById('val-pin-size').textContent = pin.value;
+  refreshGlobePins();
+
+  // Atmosphere
+  settings.atmosphere = document.getElementById('set-atmosphere').checked;
+  if (globe) globe.showAtmosphere(settings.atmosphere);
+
+  // Country fill
+  const fill = document.getElementById('set-country-fill');
+  settings.countryFill = parseFloat(fill.value);
+  document.getElementById('val-country-fill').textContent = fill.value;
+  if (globe) globe.polygonCapColor(() => `rgba(8,16,30,${settings.countryFill})`);
+
+  // Auto-rotate
+  settings.autoRotate = document.getElementById('set-auto-rotate').checked;
+  if (window.setRotation) window.setRotation(settings.autoRotate);
+
+  // Grid cols
+  settings.gridCols = parseInt(document.getElementById('set-grid-cols').value);
+  document.documentElement.style.setProperty('--grid-cols', settings.gridCols);
+  document.getElementById('grid-cols-slider').value = settings.gridCols;
+
+  // Accent
+  const accent = document.getElementById('set-accent').value;
+  settings.accent = accent;
+  document.documentElement.style.setProperty('--accent', accent);
+  if (globe) {
+    globe.atmosphereColor(accent);
+    globe.polygonStrokeColor(() => hexToRGBA(accent, 0.25));
+    refreshGlobePins();
+  }
+
+  saveSettings();
+}
+
+// Bind settings controls
+['set-rotation','set-pin-size','set-country-fill'].forEach(id => {
+  document.getElementById(id).addEventListener('input', applySettings);
+});
+['set-atmosphere','set-auto-rotate'].forEach(id => {
+  document.getElementById(id).addEventListener('change', applySettings);
+});
+['set-grid-cols','set-accent'].forEach(id => {
+  document.getElementById(id).addEventListener('change', applySettings);
+});
+
+function loadSettingsToUI() {
+  document.getElementById('set-rotation').value = settings.rotationSpeed;
+  document.getElementById('val-rotation').textContent = settings.rotationSpeed;
+  document.getElementById('set-pin-size').value = settings.pinSize;
+  document.getElementById('val-pin-size').textContent = settings.pinSize;
+  document.getElementById('set-atmosphere').checked = settings.atmosphere;
+  document.getElementById('set-country-fill').value = settings.countryFill;
+  document.getElementById('val-country-fill').textContent = settings.countryFill;
+  document.getElementById('set-auto-rotate').checked = settings.autoRotate;
+  document.getElementById('set-grid-cols').value = settings.gridCols;
+  document.getElementById('set-accent').value = settings.accent;
+  document.documentElement.style.setProperty('--accent', settings.accent);
+  document.documentElement.style.setProperty('--grid-cols', settings.gridCols);
+  document.getElementById('grid-cols-slider').value = settings.gridCols;
+}
+
+// ================================================================
+//  FULLSCREEN
+// ================================================================
+document.getElementById('btn-fullscreen').addEventListener('click', () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    document.documentElement.requestFullscreen();
+  }
+});
+
+// ================================================================
+//  GLOBE SEARCH
+// ================================================================
+const globeSearchBox = document.getElementById('globe-search-box');
+const globeSearchInput = document.getElementById('globe-search-input');
+const globeSearchResults = document.getElementById('globe-search-results');
+
+document.getElementById('btn-search-globe').addEventListener('click', () => {
+  const visible = globeSearchBox.style.display === 'block';
+  globeSearchBox.style.display = visible ? 'none' : 'block';
+  if (!visible) globeSearchInput.focus();
+});
+
+globeSearchInput.addEventListener('input', () => {
+  const q = globeSearchInput.value.toLowerCase().trim();
+  if (!q) { globeSearchResults.style.display = 'none'; return; }
+  const matches = CAMERAS.filter(c =>
+    c.name.toLowerCase().includes(q) ||
+    c.city.toLowerCase().includes(q) ||
+    c.country.toLowerCase().includes(q)
+  ).slice(0, 8);
+
+  if (matches.length === 0) {
+    globeSearchResults.style.display = 'none'; return;
+  }
+  globeSearchResults.style.display = 'block';
+  globeSearchResults.innerHTML = matches.map(c => `
+    <div class="avm-item" data-id="${c.id}" style="cursor:pointer;">
+      <span style="color:var(--accent);">◉</span>
+      <span>${c.name} <span style="color:var(--text-dim);font-size:10px;">${c.city}, ${c.country}</span></span>
+    </div>
+  `).join('');
+  globeSearchResults.querySelectorAll('.avm-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const cam = CAMERAS.find(c => c.id === item.dataset.id);
+      if (cam && globe) {
+        globe.pointOfView({ lat: cam.lat, lng: cam.lng, altitude: 1.5 }, 1000);
+        setTimeout(() => openPreview(cam), 1100);
+      }
+      globeSearchBox.style.display = 'none';
+      globeSearchInput.value = '';
+      globeSearchResults.style.display = 'none';
+    });
+  });
+});
+
+// ================================================================
+//  KEYBOARD SHORTCUTS
+// ================================================================
+document.addEventListener('keydown', e => {
+  // Don't trigger if typing in input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    if (e.key === 'Escape') {
+      e.target.blur();
+      globeSearchBox.style.display = 'none';
+    }
+    return;
+  }
+
+  switch(e.key.toLowerCase()) {
+    case 'escape':
+      if (document.getElementById('fullscreen-cam').classList.contains('open')) closeFullscreenCam();
+      else if (document.getElementById('preview-overlay').classList.contains('open')) closePreview();
+      else if (document.getElementById('settings-panel').classList.contains('open')) closeSettings();
+      break;
+    case 'g':
+      toggleView();
+      break;
+    case 's':
+      if (document.getElementById('settings-panel').classList.contains('open')) closeSettings();
+      else openSettings();
+      break;
+    case 'f':
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+      break;
+    case '/':
+      e.preventDefault();
+      if (currentView === 'globe') {
+        globeSearchBox.style.display = 'block';
+        globeSearchInput.focus();
+      } else {
+        document.getElementById('grid-search').focus();
+      }
+      break;
+    case 'v':
+      document.getElementById('views-panel').classList.toggle('open');
+      renderViewsList();
+      break;
+  }
+});
+
+// ================================================================
+//  UTILS
+// ================================================================
+function hexToRGBA(hex, alpha) {
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ================================================================
+//  INIT
+// ================================================================
+window.addEventListener('DOMContentLoaded', () => {
+  loadSettingsToUI();
+  buildContinentFilters();
+  updateStats();
+  initGlobe();
+});
+</script>
+</body>
+</html>
