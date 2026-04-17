@@ -1,0 +1,1623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RETRO — Multi-Console Emulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #06060c;
+  --bg-card: #0e0e18;
+  --bg-surface: #13131f;
+  --text: #d8d8e8;
+  --text-dim: #4a4a66;
+  --console-color: #00e5ff;
+  --glow: 0 0 20px color-mix(in srgb, var(--console-color) 40%, transparent);
+  --ctrl-opacity: 0.55;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  display: flex; flex-direction: column;
+}
+
+.bg-grid {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 50% 80%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 80%, black 20%, transparent 70%);
+}
+.bg-noise {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ═══ MENU ═══ */
+#menu-screen {
+  position: relative; z-index: 1; flex: 1;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px 24px 40px; gap: 24px; overflow-y: auto;
+}
+.menu-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: clamp(22px, 5vw, 44px); text-align: center;
+  background: linear-gradient(135deg, #00e5ff, #e84057, #ffd700);
+  background-size: 300% 300%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: grad 6s ease infinite;
+  filter: drop-shadow(0 0 30px rgba(0,229,255,0.25));
+  letter-spacing: 4px; padding-top: 8px;
+}
+@keyframes grad { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+.menu-sub { font-size: 12px; color: var(--text-dim); text-align: center; margin-top: -14px; letter-spacing: 3px; text-transform: uppercase; }
+
+.console-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; width: 100%; max-width: 900px;
+}
+.console-card {
+  background: var(--bg-card); border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 12px; padding: 14px 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; position: relative;
+  transition: all 0.25s cubic-bezier(0.16,1,0.3,1); overflow: hidden;
+}
+.console-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--c); opacity: 0; transition: opacity 0.25s;
+}
+.console-card:hover { transform: translateY(-3px); border-color: var(--c); box-shadow: 0 6px 30px color-mix(in srgb, var(--c) 15%, transparent); }
+.console-card:hover::before { opacity: 1; }
+.console-card.selected { border-color: var(--c); background: color-mix(in srgb, var(--c) 6%, var(--bg-card)); box-shadow: 0 0 30px color-mix(in srgb, var(--c) 20%, transparent); }
+.console-card.selected::before { opacity: 1; }
+.card-abbr { font-family: 'Press Start 2P', monospace; font-size: 13px; color: var(--c); text-shadow: 0 0 14px color-mix(in srgb, var(--c) 45%, transparent); }
+.card-name { font-size: 9px; color: var(--text-dim); text-align: center; line-height: 1.3; }
+.card-exts { font-size: 7px; color: var(--text-dim); opacity: 0.5; }
+.card-year { font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--c); opacity: 0.35; }
+
+/* ROM section */
+#rom-section { width: 100%; max-width: 700px; display: none; flex-direction: column; align-items: center; gap: 14px; animation: fadeUp 0.4s ease; }
+#rom-section.visible { display: flex; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+.rom-dropzone { width: 100%; padding: 24px 18px; border: 2px dashed rgba(255,255,255,0.08); border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); }
+.rom-dropzone:hover, .rom-dropzone.drag-over { border-color: var(--console-color); background: color-mix(in srgb, var(--console-color) 4%, var(--bg-card)); }
+.rom-dropzone-icon { font-size: 26px; opacity: 0.5; }
+.rom-dropzone-text { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--console-color); }
+.rom-dropzone-sub { font-size: 11px; color: var(--text-dim); }
+#rom-input { display: none; }
+.rom-library-title { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 2px; font-weight: 700; align-self: flex-start; margin-top: 4px; }
+.rom-library { width: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; }
+.rom-lib-item { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.04); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; overflow: hidden; }
+.rom-lib-item:hover { border-color: var(--console-color); background: color-mix(in srgb, var(--console-color) 5%, var(--bg-card)); transform: translateY(-1px); }
+.rom-lib-icon { font-size: 16px; flex-shrink: 0; }
+.rom-lib-name { font-size: 10px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.3; }
+.rom-lib-item.loading .rom-lib-icon { animation: spin 0.8s linear infinite; }
+
+/* ═══ GAME SCREEN ═══ */
+#game-screen { display: none; position: fixed; inset: 0; z-index: 10; background: #000; flex-direction: column; }
+#game-screen.active { display: flex; }
+.game-topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; padding: 6px 10px; gap: 5px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+  opacity: 0; transition: opacity 0.3s;
+}
+#game-screen:hover .game-topbar, .game-topbar:focus-within { opacity: 1; }
+.topbar-btn { font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 10px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 5px 10px; color: var(--text); cursor: pointer; display: flex; align-items: center; gap: 4px; transition: background 0.15s; white-space: nowrap; }
+.topbar-btn:hover { background: rgba(255,255,255,0.12); }
+.topbar-spacer { flex: 1; }
+.topbar-rom { font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--console-color); text-shadow: var(--glow); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.gamepad-indicator { font-size: 8px; color: #00ff88; font-weight: 700; padding: 3px 7px; border-radius: 5px; background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.2); display: none; }
+.gamepad-indicator.visible { display: inline-block; }
+
+#game-container { flex: 1; position: relative; width: 100%; min-height: 0; overflow: hidden; transition: border-radius 0.3s, border 0.3s, box-shadow 0.3s; }
+#game { position: absolute; inset: 0; }
+
+/* Arcade bezel */
+#game-container.arcade-bezel {
+  border: 10px solid #1a1a1a;
+  border-radius: 18px;
+  box-shadow:
+    0 0 40px color-mix(in srgb, var(--console-color) 25%, transparent),
+    0 0 80px color-mix(in srgb, var(--console-color) 10%, transparent),
+    inset 0 0 30px rgba(0,0,0,0.6);
+  margin: 6px;
+}
+#game-container.arcade-bezel #game { border-radius: 8px; overflow: hidden; }
+
+/* ═══ EFFECT OVERLAYS ═══ */
+.fx-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 3; transition: opacity 0.3s; }
+.fx-scanlines {
+  background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.06) 1px, rgba(0,0,0,0.06) 2px);
+}
+.fx-vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+.fx-phosphor {
+  background: repeating-linear-gradient(90deg,
+    rgba(255,0,0,0.03) 0px, rgba(255,0,0,0.03) 1px,
+    rgba(0,255,0,0.03) 1px, rgba(0,255,0,0.03) 2px,
+    rgba(0,0,255,0.03) 2px, rgba(0,0,255,0.03) 3px
+  );
+}
+.fx-backlight {
+  box-shadow: inset 0 0 80px 20px rgba(200,220,255,0.04);
+}
+.fx-hidden { display: none; }
+
+/* CRT curvature: applied to #game */
+#game.fx-curvature { border-radius: 14px; overflow: hidden; }
+
+/* Chromatic aberration via SVG filter on #game */
+#game.fx-chromatic { filter: url(#chromatic-filter); }
+
+/* Bloom: brightness + contrast */
+#game.fx-bloom { filter: brightness(1.12) contrast(1.06); }
+#game.fx-chromatic.fx-bloom { filter: url(#chromatic-filter) brightness(1.12) contrast(1.06); }
+
+/* Flicker */
+@keyframes crt-flicker { 0%,100%{opacity:1} 50%{opacity:0.985} }
+#game.fx-flicker { animation: crt-flicker 0.08s infinite; }
+
+/* Glow zoom */
+#game.fx-glowzoom { filter: brightness(1.08); transform: scale(1.005); }
+#game.fx-chromatic.fx-glowzoom { filter: url(#chromatic-filter) brightness(1.08); transform: scale(1.005); }
+
+/* Loading */
+#loading-overlay { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--bg); transition: opacity 0.5s; }
+#loading-overlay.fade-out { opacity: 0; pointer-events: none; }
+#loading-overlay.hidden { display: none; }
+.loading-spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.06); border-top-color: var(--console-color); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--console-color); text-shadow: var(--glow); }
+.loading-sub { font-size: 11px; color: var(--text-dim); }
+
+/* ═══ CONTROLLER OVERLAY ═══ */
+#controller-overlay { position: fixed; bottom: 0; left: 0; right: 0; z-index: 80; padding: 12px 16px 20px; display: flex; align-items: flex-end; justify-content: space-between; pointer-events: none; opacity: var(--ctrl-opacity); transition: opacity 0.2s; touch-action: none; }
+#controller-overlay.hidden { display: none; }
+#controller-overlay > * { pointer-events: auto; }
+.dpad { width: 120px; height: 120px; position: relative; flex-shrink: 0; }
+.dpad-bg-h, .dpad-bg-v { position: absolute; background: rgba(255,255,255,0.03); border: 1.5px solid color-mix(in srgb, var(--console-color) 50%, transparent); border-radius: 6px; }
+.dpad-bg-h { width: 100%; height: 33.33%; top: 33.33%; }
+.dpad-bg-v { width: 33.33%; height: 100%; left: 33.33%; }
+.dpad-zone { position: absolute; z-index: 2; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--console-color); cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; transition: background 0.1s; border-radius: 4px; }
+.dpad-zone:active, .dpad-zone.pressed { background: color-mix(in srgb, var(--console-color) 15%, transparent); }
+.dpad-up { width: 33.33%; height: 33.33%; top: 0; left: 33.33%; }
+.dpad-down { width: 33.33%; height: 33.33%; bottom: 0; left: 33.33%; }
+.dpad-left { width: 33.33%; height: 33.33%; top: 33.33%; left: 0; }
+.dpad-right { width: 33.33%; height: 33.33%; top: 33.33%; right: 0; }
+.ctrl-center { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ctrl-center-row { display: flex; gap: 10px; }
+.ctrl-pill { padding: 7px 16px; border-radius: 20px; background: rgba(255,255,255,0.03); border: 1.5px solid color-mix(in srgb, var(--console-color) 40%, transparent); font-family: 'Press Start 2P', monospace; font-size: 7px; color: var(--console-color); cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; transition: all 0.1s; }
+.ctrl-pill:active, .ctrl-pill.pressed { background: color-mix(in srgb, var(--console-color) 20%, transparent); box-shadow: var(--glow); }
+.ctrl-face { display: flex; align-items: center; position: relative; flex-shrink: 0; }
+.face-btn { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.03); border: 1.5px solid color-mix(in srgb, var(--console-color) 50%, transparent); display: flex; align-items: center; justify-content: center; font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--console-color); cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; transition: all 0.1s; position: absolute; }
+.face-btn:active, .face-btn.pressed { background: color-mix(in srgb, var(--console-color) 25%, transparent); box-shadow: var(--glow); }
+.face-2btn { width: 120px; height: 52px; }
+.face-2btn .fb-0 { left: 0; top: 0; } .face-2btn .fb-1 { right: 0; top: 0; }
+.face-3btn { width: 170px; height: 52px; }
+.face-3btn .fb-0 { left: 0; top: 0; } .face-3btn .fb-1 { left: 60px; top: 0; } .face-3btn .fb-2 { right: 0; top: 0; }
+.face-4btn { width: 120px; height: 120px; }
+.face-4btn .fb-0 { left: 0; top: 50%; transform: translateY(-50%); }
+.face-4btn .fb-1 { left: 50%; top: 100%; transform: translate(-50%,-100%); }
+.face-4btn .fb-2 { right: 0; top: 50%; transform: translateY(-50%); }
+.face-4btn .fb-3 { left: 50%; top: 0; transform: translateX(-50%); }
+.shoulder-bar { position: fixed; top: 48px; left: 0; right: 0; z-index: 80; display: flex; justify-content: space-between; padding: 0 12px; pointer-events: none; opacity: var(--ctrl-opacity); }
+.shoulder-bar.hidden { display: none; }
+.shoulder-btn { padding: 8px 24px; border-radius: 0 0 10px 10px; background: rgba(255,255,255,0.03); border: 1.5px solid color-mix(in srgb, var(--console-color) 40%, transparent); border-top: none; font-family: 'Press Start 2P', monospace; font-size: 9px; color: var(--console-color); cursor: pointer; pointer-events: auto; user-select: none; -webkit-user-select: none; touch-action: none; transition: all 0.1s; }
+.shoulder-btn:active, .shoulder-btn.pressed { background: color-mix(in srgb, var(--console-color) 20%, transparent); box-shadow: var(--glow); }
+.swipe-zone-hint { position: fixed; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 8px; color: var(--text-dim); opacity: 0.25; font-family: 'Outfit', sans-serif; z-index: 81; pointer-events: none; white-space: nowrap; }
+.swipe-zone-hint.hidden { display: none; }
+
+/* ═══ OPTIONS PANEL ═══ */
+#options-panel { position: fixed; top: 0; right: -340px; bottom: 0; width: 320px; z-index: 200; background: var(--bg-surface); border-left: 1px solid rgba(255,255,255,0.06); padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: right 0.3s cubic-bezier(0.16,1,0.3,1); overflow-y: auto; }
+#options-panel.open { right: 0; }
+.opt-backdrop { position: fixed; inset: 0; z-index: 190; background: rgba(0,0,0,0.5); display: none; }
+.opt-backdrop.visible { display: block; }
+.opt-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--console-color); text-shadow: var(--glow); }
+.opt-group { display: flex; flex-direction: column; gap: 6px; }
+.opt-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+.opt-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.opt-slider { flex: 1; -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); outline: none; }
+.opt-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--console-color); cursor: pointer; box-shadow: var(--glow); }
+.opt-value { font-size: 11px; font-weight: 700; color: var(--console-color); min-width: 32px; text-align: right; }
+.toggle-wrap { display: flex; align-items: center; gap: 8px; }
+.toggle { width: 40px; height: 22px; background: rgba(255,255,255,0.08); border-radius: 11px; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+.toggle.on { background: color-mix(in srgb, var(--console-color) 40%, transparent); }
+.toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-dim); transition: all 0.2s; }
+.toggle.on::after { left: 21px; background: var(--console-color); box-shadow: var(--glow); }
+.toggle-label { font-size: 11px; color: var(--text); }
+.opt-sep { height: 1px; background: rgba(255,255,255,0.04); margin: 2px 0; }
+.opt-section-title { font-family: 'Press Start 2P', monospace; font-size: 8px; color: var(--console-color); opacity: 0.6; margin-top: 4px; }
+
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--bg-surface); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 8px 16px; font-size: 11px; color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 9000; transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); pointer-events: none; display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+@media (max-width: 600px) {
+  .console-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rom-library { grid-template-columns: repeat(2, 1fr); }
+  .dpad { width: 100px; height: 100px; }
+  .face-btn { width: 42px; height: 42px; font-size: 9px; }
+  .face-2btn { width: 100px; height: 46px; } .face-3btn { width: 140px; height: 46px; } .face-4btn { width: 100px; height: 100px; }
+  #options-panel { width: 260px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-noise"></div>
+
+<!-- SVG filter for chromatic aberration -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+<defs>
+  <filter id="chromatic-filter" color-interpolation-filters="sRGB">
+    <feOffset in="SourceGraphic" dx="-1.5" dy="0" result="r"/>
+    <feColorMatrix in="r" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="red"/>
+    <feOffset in="SourceGraphic" dx="1.5" dy="0" result="b"/>
+    <feColorMatrix in="b" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blue"/>
+    <feOffset in="SourceGraphic" dx="0" dy="0" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="green"/>
+    <feBlend in="red" in2="green" mode="screen" result="rg"/>
+    <feBlend in="rg" in2="blue" mode="screen"/>
+  </filter>
+</defs>
+</svg>
+
+<!-- ═════════ MENU ═════════ -->
+<div id="menu-screen">
+  <div class="menu-title">RETRO</div>
+  <div class="menu-sub">Multi-Console Emulator</div>
+  <div class="console-grid" id="console-grid"></div>
+  <div id="rom-section">
+    <div class="rom-dropzone" id="rom-dropzone">
+      <div class="rom-dropzone-icon">📂</div>
+      <div class="rom-dropzone-text" id="dropzone-label">Drop ROM here or click to browse</div>
+      <div class="rom-dropzone-sub" id="dropzone-exts"></div>
+    </div>
+    <input type="file" id="rom-input">
+    <div class="rom-library-title" id="rom-library-title" style="display:none">— or pick a game —</div>
+    <div class="rom-library" id="rom-library"></div>
+  </div>
+</div>
+
+<!-- ═════════ GAME ═════════ -->
+<div id="game-screen">
+  <div class="game-topbar">
+    <button class="topbar-btn" id="btn-back">◀ Menu</button>
+    <button class="topbar-btn" id="btn-ctrl-toggle">🎮 Overlay</button>
+    <button class="topbar-btn" id="btn-options">⚙ Options</button>
+    <span class="gamepad-indicator" id="gamepad-ind">🎮 Gamepad</span>
+    <div class="topbar-spacer"></div>
+    <span class="topbar-rom" id="topbar-rom"></span>
+  </div>
+  <div id="game-container">
+    <div id="game"></div>
+    <div class="fx-overlay fx-scanlines" id="fx-scanlines"></div>
+    <div class="fx-overlay fx-vignette fx-hidden" id="fx-vignette"></div>
+    <div class="fx-overlay fx-phosphor fx-hidden" id="fx-phosphor"></div>
+    <div class="fx-overlay fx-backlight fx-hidden" id="fx-backlight"></div>
+    <div id="loading-overlay">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading Emulator…</div>
+      <div class="loading-sub" id="loading-sub">Downloading core</div>
+    </div>
+  </div>
+  <div id="controller-overlay" class="hidden"></div>
+  <div class="shoulder-bar hidden" id="shoulder-bar"></div>
+  <div class="swipe-zone-hint hidden" id="swipe-hint">Swipe: D-Pad · Tap: A · Double-Tap: B · Long-Tap: Start</div>
+</div>
+
+<!-- Options Panel -->
+<div class="opt-backdrop" id="opt-backdrop"></div>
+<div id="options-panel">
+  <div class="opt-title">OPTIONS</div>
+
+  <!-- Controller -->
+  <div class="opt-section-title">CONTROLS</div>
+  <div class="opt-group">
+    <div class="opt-label">Custom Overlay Controller</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-ctrl"></div><span class="toggle-label">Show overlay</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Overlay Opacity</div>
+    <div class="opt-row">
+      <input type="range" class="opt-slider" id="slider-opacity" min="0" max="100" value="55">
+      <span class="opt-value" id="val-opacity">55%</span>
+    </div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Touch Gestures (Swipe)</div>
+    <div class="toggle-wrap"><div class="toggle on" id="toggle-swipe"></div><span class="toggle-label">Enabled</span></div>
+  </div>
+
+  <div class="opt-sep"></div>
+  <div class="opt-section-title">DISPLAY</div>
+  <div class="opt-group">
+    <div class="opt-label">Arcade Bezel</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-bezel"></div><span class="toggle-label">Glowing TV frame</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Scanlines</div>
+    <div class="toggle-wrap"><div class="toggle on" id="toggle-scanlines"></div><span class="toggle-label">CRT lines</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Chromatic Aberration</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-chromatic"></div><span class="toggle-label">RGB fringe</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Vignette</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-vignette"></div><span class="toggle-label">Dark edges</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Bloom / Glow</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-bloom"></div><span class="toggle-label">Brightness bloom</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">CRT Curvature</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-curvature"></div><span class="toggle-label">Rounded screen</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Phosphor Grid</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-phosphor"></div><span class="toggle-label">RGB subpixels</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Backlight Bleed</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-backlight"></div><span class="toggle-label">Edge light</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">CRT Flicker</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-flicker"></div><span class="toggle-label">Subtle flicker</span></div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Glow Zoom</div>
+    <div class="toggle-wrap"><div class="toggle" id="toggle-glowzoom"></div><span class="toggle-label">Bright + zoom</span></div>
+  </div>
+
+  <div class="opt-sep"></div>
+  <div class="opt-section-title">AUDIO FX</div>
+  <div class="opt-group">
+    <div class="opt-label">Echo Delay</div>
+    <div class="opt-row">
+      <input type="range" class="opt-slider" id="slider-echo-time" min="0" max="500" value="100">
+      <span class="opt-value" id="val-echo-time">100ms</span>
+    </div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Echo Mix</div>
+    <div class="opt-row">
+      <input type="range" class="opt-slider" id="slider-echo-mix" min="0" max="100" value="12">
+      <span class="opt-value" id="val-echo-mix">12%</span>
+    </div>
+  </div>
+  <div class="opt-group">
+    <div class="opt-label">Reverb Mix</div>
+    <div class="opt-row">
+      <input type="range" class="opt-slider" id="slider-reverb-mix" min="0" max="100" value="8">
+      <span class="opt-value" id="val-reverb-mix">8%</span>
+    </div>
+  </div>
+
+  <div class="opt-sep"></div>
+  <div class="opt-group">
+    <button class="topbar-btn" id="btn-fullscreen" style="width:100%;justify-content:center;">⛶ Fullscreen</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toast-icon"></span><span id="toast-msg"></span></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ══════════════════════════════════════════════════════
+   AUDIO FX — Monkey-patch AudioContext before EmulatorJS
+   Intercepts destination to inject echo + reverb chain
+   ══════════════════════════════════════════════════════ */
+const _RealAC = window.AudioContext || window.webkitAudioContext;
+if (_RealAC) {
+  function PatchedAudioContext() {
+    const ctx = new _RealAC();
+    try {
+      const realDest = Object.getOwnPropertyDescriptor(_RealAC.prototype, 'destination').get.call(ctx);
+
+      // Input gain node (fake destination)
+      const input = ctx.createGain();
+
+      // Dry path
+      input.connect(realDest);
+
+      // Echo chain: input → delay → echoWet → realDest, delay → feedback → delay
+      const delay = ctx.createDelay(2.0);
+      const feedback = ctx.createGain();
+      const echoWet = ctx.createGain();
+      delay.delayTime.value = 0.10;
+      feedback.gain.value = 0.25;
+      echoWet.gain.value = 0.12;
+      input.connect(delay);
+      delay.connect(echoWet);
+      echoWet.connect(realDest);
+      delay.connect(feedback);
+      feedback.connect(delay);
+
+      // Reverb chain: input → convolver → reverbWet → realDest
+      const convolver = ctx.createConvolver();
+      const reverbWet = ctx.createGain();
+      reverbWet.gain.value = 0.08;
+      const irLen = Math.floor(ctx.sampleRate * 1.5);
+      const ir = ctx.createBuffer(2, irLen, ctx.sampleRate);
+      for (let ch = 0; ch < 2; ch++) {
+        const d = ir.getChannelData(ch);
+        for (let i = 0; i < irLen; i++) {
+          d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 2.8);
+        }
+      }
+      convolver.buffer = ir;
+      input.connect(convolver);
+      convolver.connect(reverbWet);
+      reverbWet.connect(realDest);
+
+      // Override destination
+      Object.defineProperty(ctx, 'destination', { get: () => input, configurable: true });
+
+      // Store FX nodes globally
+      ctx._audioFX = { delay, feedback, echoWet, convolver, reverbWet, input, realDest };
+      window._audioFXCtx = ctx;
+    } catch (e) {
+      console.warn('Audio FX patch failed, falling back:', e);
+    }
+    return ctx;
+  }
+  PatchedAudioContext.prototype = _RealAC.prototype;
+  Object.setPrototypeOf(PatchedAudioContext, _RealAC);
+  window.AudioContext = PatchedAudioContext;
+  if (window.webkitAudioContext) window.webkitAudioContext = PatchedAudioContext;
+}
+
+/* ══════════════════════════════════════════════════════
+   CONSOLE DEFINITIONS + ROM LIBRARY
+   ══════════════════════════════════════════════════════ */
+const CONSOLES = {
+  nes: {
+    name: 'NES', full: 'Nintendo Entertainment System',
+    core: 'nes', color: '#E60012', year: '1983',
+    exts: ['.nes'],
+    face: [{ label: 'B', key: 'KeyZ' }, { label: 'A', key: 'KeyX' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'START', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Super Mario Bros.', url: 'https://archive.org/download/roms_nes/Super%20Mario%20Bros.%20%28World%29.zip/Super%20Mario%20Bros.%20%28World%29.nes' },
+      { name: 'Super Mario Bros. 2', url: 'https://archive.org/download/roms_nes/Super%20Mario%20Bros.%202%20%28USA%29.zip/Super%20Mario%20Bros.%202%20%28USA%29.nes' },
+      { name: 'Super Mario Bros. 3', url: 'https://archive.org/download/roms_nes/Super%20Mario%20Bros.%203%20%28USA%29.zip/Super%20Mario%20Bros.%203%20%28USA%29.nes' },
+      { name: 'Legend of Zelda', url: 'https://archive.org/download/roms_nes/Legend%20of%20Zelda%2C%20The%20%28USA%29%20%28Collector%27s%20Edition%29.zip/Legend%20of%20Zelda%2C%20The%20%28USA%29%20%28Collector%27s%20Edition%29.nes' },
+      { name: 'Zelda II', url: 'https://archive.org/download/roms_nes/Zelda%20II%20-%20The%20Adventure%20of%20Link%20%28USA%29.zip/Zelda%20II%20-%20The%20Adventure%20of%20Link%20%28USA%29.nes' },
+      { name: 'Metroid', url: 'https://archive.org/download/roms_nes/Metroid%20%28USA%29.zip/Metroid%20%28USA%29.nes' },
+      { name: 'Contra', url: 'https://archive.org/download/roms_nes/Contra%20%28USA%29.zip/Contra%20%28USA%29.nes' },
+      { name: 'Castlevania', url: 'https://archive.org/download/roms_nes/Castlevania%20%28USA%29.zip/Castlevania%20%28USA%29.nes' },
+      { name: 'Castlevania III', url: 'https://archive.org/download/roms_nes/Castlevania%20III%20-%20Dracula%27s%20Curse%20%28USA%29.zip/Castlevania%20III%20-%20Dracula%27s%20Curse%20%28USA%29.nes' },
+      { name: 'Mega Man 2', url: 'https://archive.org/download/roms_nes/Mega%20Man%202%20%28USA%29.zip/Mega%20Man%202%20%28USA%29.nes' },
+      { name: 'Mega Man 3', url: 'https://archive.org/download/roms_nes/Mega%20Man%203%20%28USA%29.zip/Mega%20Man%203%20%28USA%29.nes' },
+      { name: 'Mega Man 4', url: 'https://archive.org/download/roms_nes/Mega%20Man%204%20%28USA%29.zip/Mega%20Man%204%20%28USA%29.nes' },
+      { name: 'Mega Man 5', url: 'https://archive.org/download/roms_nes/Mega%20Man%205%20%28USA%29.zip/Mega%20Man%205%20%28USA%29.nes' },
+      { name: 'Mega Man 6', url: 'https://archive.org/download/roms_nes/Mega%20Man%206%20%28USA%29.zip/Mega%20Man%206%20%28USA%29.nes' },
+      { name: 'Mike Tyson\'s Punch-Out!!', url: 'https://archive.org/download/roms_nes/Mike%20Tyson%27s%20Punch-Out%21%21%20%28USA%29.zip/Mike%20Tyson%27s%20Punch-Out%21%21%20%28USA%29.nes' },
+      { name: 'Kirby\'s Adventure', url: 'https://archive.org/download/roms_nes/Kirby%27s%20Adventure%20%28USA%29.zip/Kirby%27s%20Adventure%20%28USA%29.nes' },
+      { name: 'DuckTales', url: 'https://archive.org/download/roms_nes/DuckTales%20%28USA%29.zip/DuckTales%20%28USA%29.nes' },
+      { name: 'DuckTales 2', url: 'https://archive.org/download/roms_nes/DuckTales%202%20%28USA%29.zip/DuckTales%202%20%28USA%29.nes' },
+      { name: 'Chip \'n Dale Rescue Rangers', url: 'https://archive.org/download/roms_nes/Chip%20%27n%20Dale%20-%20Rescue%20Rangers%20%28USA%29.zip/Chip%20%27n%20Dale%20-%20Rescue%20Rangers%20%28USA%29.nes' },
+      { name: 'Tetris', url: 'https://archive.org/download/roms_nes/Tetris%20%28USA%29.zip/Tetris%20%28USA%29.nes' },
+      { name: 'Dr. Mario', url: 'https://archive.org/download/roms_nes/Dr.%20Mario%20%28Japan%2C%20USA%29%20%28En%29.zip/Dr.%20Mario%20%28Japan%2C%20USA%29%20%28En%29.nes' },
+      { name: 'Blaster Master', url: 'https://archive.org/download/roms_nes/Blaster%20Master%20%28USA%29.zip/Blaster%20Master%20%28USA%29.nes' },
+      { name: 'Batman', url: 'https://archive.org/download/roms_nes/Batman%20-%20The%20Video%20Game%20%28USA%29.zip/Batman%20-%20The%20Video%20Game%20%28USA%29.nes' },
+      { name: 'Battletoads', url: 'https://archive.org/download/roms_nes/Battletoads%20%28USA%29.zip/Battletoads%20%28USA%29.nes' },
+      { name: 'Double Dragon II', url: 'https://archive.org/download/roms_nes/Double%20Dragon%20II%20-%20The%20Revenge%20%28USA%29.zip/Double%20Dragon%20II%20-%20The%20Revenge%20%28USA%29.nes' },
+      { name: 'River City Ransom', url: 'https://archive.org/download/roms_nes/River%20City%20Ransom%20%28USA%29.zip/River%20City%20Ransom%20%28USA%29.nes' },
+      { name: 'Ninja Gaiden', url: 'https://archive.org/download/roms_nes/Ninja%20Gaiden%20%28USA%29.zip/Ninja%20Gaiden%20%28USA%29.nes' },
+      { name: 'Ninja Gaiden II', url: 'https://archive.org/download/roms_nes/Ninja%20Gaiden%20II%20-%20The%20Dark%20Sword%20of%20Chaos%20%28USA%29.zip/Ninja%20Gaiden%20II%20-%20The%20Dark%20Sword%20of%20Chaos%20%28USA%29.nes' },
+      { name: 'Ninja Gaiden III', url: 'https://archive.org/download/roms_nes/Ninja%20Gaiden%20III%20-%20The%20Ancient%20Ship%20of%20Doom%20%28USA%29.zip/Ninja%20Gaiden%20III%20-%20The%20Ancient%20Ship%20of%20Doom%20%28USA%29.nes' },
+      { name: 'Kid Icarus', url: 'https://archive.org/download/roms_nes/Kid%20Icarus%20%28USA%2C%20Europe%29.zip/Kid%20Icarus%20%28USA%2C%20Europe%29.nes' },
+      { name: 'Faxanadu', url: 'https://archive.org/download/roms_nes/Faxanadu%20%28USA%29.zip/Faxanadu%20%28USA%29.nes' },
+      { name: 'Gradius', url: 'https://archive.org/download/roms_nes/Gradius%20%28USA%29.zip/Gradius%20%28USA%29.nes' },
+      { name: 'Life Force', url: 'https://archive.org/download/roms_nes/Life%20Force%20%28USA%29.zip/Life%20Force%20%28USA%29.nes' },
+      { name: 'Excitebike', url: 'https://archive.org/download/roms_nes/Excitebike%20%28Japan%2C%20USA%29.zip/Excitebike%20%28Japan%2C%20USA%29.nes' },
+      { name: 'R.C. Pro-Am', url: 'https://archive.org/download/roms_nes/R.C.%20Pro-Am%20%28USA%29.zip/R.C.%20Pro-Am%20%28USA%29.nes' },
+      { name: 'Bubble Bobble', url: 'https://archive.org/download/roms_nes/Bubble%20Bobble%20%28USA%29.zip/Bubble%20Bobble%20%28USA%29.nes' },
+      { name: 'Bomberman', url: 'https://archive.org/download/roms_nes/Bomberman%20%28USA%29.zip/Bomberman%20%28USA%29.nes' },
+      { name: 'Pac-Man', url: 'https://archive.org/download/roms_nes/Pac-Man%20%28USA%29%20%28Namco%29.zip/Pac-Man%20%28USA%29%20%28Namco%29.nes' },
+      { name: 'Paperboy', url: 'https://archive.org/download/roms_nes/Paperboy%20%28USA%29.zip/Paperboy%20%28USA%29.nes' },
+      { name: 'Prince of Persia', url: 'https://archive.org/download/roms_nes/Prince%20of%20Persia%20%28USA%29.zip/Prince%20of%20Persia%20%28USA%29.nes' },
+      { name: 'Shadow of the Ninja', url: 'https://archive.org/download/roms_nes/Shadow%20of%20the%20Ninja%20%28USA%29.zip/Shadow%20of%20the%20Ninja%20%28USA%29.nes' },
+      { name: 'Shatterhand', url: 'https://archive.org/download/roms_nes/Shatterhand%20%28USA%29.zip/Shatterhand%20%28USA%29.nes' },
+      { name: 'Tecmo Super Bowl', url: 'https://archive.org/download/roms_nes/Tecmo%20Super%20Bowl%20%28USA%29.zip/Tecmo%20Super%20Bowl%20%28USA%29.nes' },
+      { name: 'Tiny Toon Adventures', url: 'https://archive.org/download/roms_nes/Tiny%20Toon%20Adventures%20%28USA%29.zip/Tiny%20Toon%20Adventures%20%28USA%29.nes' },
+      { name: 'TMNT', url: 'https://archive.org/download/roms_nes/Teenage%20Mutant%20Ninja%20Turtles%20%28USA%29.zip/Teenage%20Mutant%20Ninja%20Turtles%20%28USA%29.nes' },
+      { name: 'TMNT II: The Arcade Game', url: 'https://archive.org/download/roms_nes/Teenage%20Mutant%20Ninja%20Turtles%20II%20-%20The%20Arcade%20Game%20%28USA%29.zip/Teenage%20Mutant%20Ninja%20Turtles%20II%20-%20The%20Arcade%20Game%20%28USA%29.nes' },
+      { name: 'TMNT III', url: 'https://archive.org/download/roms_nes/Teenage%20Mutant%20Ninja%20Turtles%20III%20-%20The%20Manhattan%20Project%20%28USA%29.zip/Teenage%20Mutant%20Ninja%20Turtles%20III%20-%20The%20Manhattan%20Project%20%28USA%29.nes' },
+      { name: 'Felix the Cat', url: 'https://archive.org/download/roms_nes/Felix%20the%20Cat%20%28USA%29.zip/Felix%20the%20Cat%20%28USA%29.nes' },
+      { name: 'Bucky O\'Hare', url: 'https://archive.org/download/roms_nes/Bucky%20O%27Hare%20%28USA%29.zip/Bucky%20O%27Hare%20%28USA%29.nes' },
+      { name: 'Power Blade', url: 'https://archive.org/download/roms_nes/Power%20Blade%20%28USA%29.zip/Power%20Blade%20%28USA%29.nes' },
+      { name: 'Cobra Triangle', url: 'https://archive.org/download/roms_nes/Cobra%20Triangle%20%28USA%29.zip/Cobra%20Triangle%20%28USA%29.nes' },
+      { name: 'Marble Madness', url: 'https://archive.org/download/roms_nes/Marble%20Madness%20%28USA%29.zip/Marble%20Madness%20%28USA%29.nes' },
+      { name: 'Solomon\'s Key', url: 'https://archive.org/download/roms_nes/Solomon%27s%20Key%20%28USA%29.zip/Solomon%27s%20Key%20%28USA%29.nes' },
+      { name: 'Snow Brothers', url: 'https://archive.org/download/roms_nes/Snow%20Brothers%20%28USA%29.zip/Snow%20Brothers%20%28USA%29.nes' },
+      { name: 'Maniac Mansion', url: 'https://archive.org/download/roms_nes/Maniac%20Mansion%20%28USA%29.zip/Maniac%20Mansion%20%28USA%29.nes' },
+      { name: 'Shadowgate', url: 'https://archive.org/download/roms_nes/Shadowgate%20%28USA%29.zip/Shadowgate%20%28USA%29.nes' },
+      { name: 'Ice Hockey', url: 'https://archive.org/download/roms_nes/Ice%20Hockey%20%28USA%29.zip/Ice%20Hockey%20%28USA%29.nes' },
+      { name: 'Dragon Warrior', url: 'https://archive.org/download/roms_nes/Dragon%20Warrior%20%28USA%29.zip/Dragon%20Warrior%20%28USA%29.nes' },
+      { name: 'Dragon Warrior III', url: 'https://archive.org/download/roms_nes/Dragon%20Warrior%20III%20%28USA%29.zip/Dragon%20Warrior%20III%20%28USA%29.nes' },
+      { name: 'Dragon Warrior IV', url: 'https://archive.org/download/roms_nes/Dragon%20Warrior%20IV%20%28USA%29.zip/Dragon%20Warrior%20IV%20%28USA%29.nes' },
+      { name: 'Final Fantasy', url: 'https://archive.org/download/roms_nes/Final%20Fantasy%20%28USA%29.zip/Final%20Fantasy%20%28USA%29.nes' },
+      { name: 'Little Samson', url: 'https://archive.org/download/roms_nes/Little%20Samson%20%28USA%29.zip/Little%20Samson%20%28USA%29.nes' },
+      { name: 'Journey to Silius', url: 'https://archive.org/download/roms_nes/Journey%20to%20Silius%20%28USA%29.zip/Journey%20to%20Silius%20%28USA%29.nes' },
+      { name: 'Jackal', url: 'https://archive.org/download/roms_nes/Jackal%20%28USA%29.zip/Jackal%20%28USA%29.nes' },
+      { name: 'Strider', url: 'https://archive.org/download/roms_nes/Strider%20%28USA%29.zip/Strider%20%28USA%29.nes' },
+      { name: 'Willow', url: 'https://archive.org/download/roms_nes/Willow%20%28USA%29.zip/Willow%20%28USA%29.nes' },
+      { name: 'Vice: Project Doom', url: 'https://archive.org/download/roms_nes/Vice%20-%20Project%20Doom%20%28USA%29.zip/Vice%20-%20Project%20Doom%20%28USA%29.nes' },
+      { name: 'Ghosts \'n Goblins', url: 'https://archive.org/download/roms_nes/Ghosts%27n%20Goblins%20%28USA%29.zip/Ghosts%27n%20Goblins%20%28USA%29.nes' },
+      { name: 'Addams Family', url: 'https://archive.org/download/roms_nes/Addams%20Family%2C%20The%20%28USA%29.zip/Addams%20Family%2C%20The%20%28USA%29.nes' },
+      { name: 'Joe & Mac', url: 'https://archive.org/download/roms_nes/Joe%20%26%20Mac%20%28USA%29.zip/Joe%20%26%20Mac%20%28USA%29.nes' },
+      { name: 'Back to the Future', url: 'https://archive.org/download/roms_nes/Back%20to%20the%20Future%20%28USA%29.zip/Back%20to%20the%20Future%20%28USA%29.nes' },
+      { name: 'Skate or Die', url: 'https://archive.org/download/roms_nes/Skate%20or%20Die%20%28USA%29.zip/Skate%20or%20Die%20%28USA%29.nes' },
+      { name: 'Airwolf', url: 'https://archive.org/download/roms_nes/Airwolf%20%28USA%29%20%28Acclaim%29.zip/Airwolf%20%28USA%29%20%28Acclaim%29.nes' },
+      { name: 'S.C.A.T.', url: 'https://archive.org/download/roms_nes/S.C.A.T.%20-%20Special%20Cybernetic%20Attack%20Team%20%28USA%29.zip/S.C.A.T.%20-%20Special%20Cybernetic%20Attack%20Team%20%28USA%29.nes' },
+      { name: 'Yoshi\'s Cookie', url: 'https://archive.org/download/roms_nes/Yoshi%27s%20Cookie%20%28USA%29.zip/Yoshi%27s%20Cookie%20%28USA%29.nes' },
+      { name: 'Wario\'s Woods', url: 'https://archive.org/download/roms_nes/Wario%27s%20Woods%20%28USA%29.zip/Wario%27s%20Woods%20%28USA%29.nes' },
+      { name: 'StarTropics', url: 'https://archive.org/download/roms_nes/StarTropics%20%28USA%29.zip/StarTropics%20%28USA%29.nes' },
+      { name: 'Bionic Commando', url: 'https://archive.org/download/roms_nes/Bionic%20Commando%20%28USA%29.zip/Bionic%20Commando%20%28USA%29.nes' },
+      { name: 'Gargoyle\'s Quest II', url: 'https://archive.org/download/roms_nes/Gargoyle%27s%20Quest%20II%20%28USA%29.zip/Gargoyle%27s%20Quest%20II%20%28USA%29.nes' },
+      { name: 'Metal Gear', url: 'https://archive.org/download/roms_nes/Metal%20Gear%20%28USA%29.zip/Metal%20Gear%20%28USA%29.nes' },
+      { name: 'Spy Hunter', url: 'https://archive.org/download/roms_nes/Spy%20Hunter%20%28USA%29.zip/Spy%20Hunter%20%28USA%29.nes' },
+      { name: 'Rygar', url: 'https://archive.org/download/roms_nes/Rygar%20%28USA%29.zip/Rygar%20%28USA%29.nes' },
+      { name: 'Adventure Island', url: 'https://archive.org/download/roms_nes/Adventure%20Island%20%28USA%29.zip/Adventure%20Island%20%28USA%29.nes' },
+      { name: 'Double Dragon', url: 'https://archive.org/download/roms_nes/Double%20Dragon%20%28USA%29.zip/Double%20Dragon%20%28USA%29.nes' },
+      { name: 'TMNT: Tournament Fighters', url: 'https://archive.org/download/roms_nes/Teenage%20Mutant%20Ninja%20Turtles%20-%20Tournament%20Fighters%20%28USA%29.zip/Teenage%20Mutant%20Ninja%20Turtles%20-%20Tournament%20Fighters%20%28USA%29.nes' },
+    ]
+  },
+  gb: {
+    name: 'GAME BOY', full: 'Nintendo Game Boy',
+    core: 'gb', color: '#8bac0f', year: '1989',
+    exts: ['.gb', '.gbc'],
+    face: [{ label: 'B', key: 'KeyZ' }, { label: 'A', key: 'KeyX' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'START', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Tetris', url: 'https://github.com/djkf/vibe-gameboy-emulator/raw/refs/heads/main/tetris.gb' },
+      { name: 'Asteroids', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Asteroids%20%28USA%29.gb' },
+      { name: 'Cool Spot', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Cool%20Spot%20%28USA%29.gb' },
+      { name: 'Earthworm Jim', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Earthworm%20Jim%20%28USA%29.gb' },
+      { name: 'Joe & Mac', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Joe%20%26%20Mac%20%28USA%29.gb' },
+      { name: 'Jetsons: Robot Panic', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Jetsons%2C%20The%20-%20Robot%20Panic%20%28USA%29.gb' },
+      { name: "Kirby's Dream Land", url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Kirby%27s%20Dream%20Land%20%28USA%29.gb' },
+      { name: 'Lemmings', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Lemmings%20%28USA%29.gb' },
+      { name: 'Looney Tunes', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Looney%20Tunes%20%28USA%29.gb' },
+      { name: 'Pac-Man', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Pac-Man%20%28USA%29.gb' },
+      { name: 'Paperboy', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Paperboy%20%28USA%29.gb' },
+      { name: 'Super Mario Land', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Super%20Mario%20Land.gb' },
+      { name: 'Super Off Road', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Super%20Off%20Road%20%28USA%29.gb' },
+      { name: 'Tiny Toon Adventures', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Tiny%20Toon%20Adventures%20-%20Babs%27%20Big%20Break%20%28USA%29.gb' },
+      { name: 'Tom and Jerry', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Tom%20and%20Jerry%20%28USA%29.gb' },
+      { name: 'Uno (GBC)', url: 'https://archive.org/download/game-boy-and-game-boy-color-complete-collection/Uno%20%28USA%29.gbc' },
+    ]
+  },
+  gba: {
+    name: 'GBA', full: 'Game Boy Advance',
+    core: 'gba', color: '#7B68EE', year: '2001',
+    exts: ['.gba'],
+    face: [{ label: 'B', key: 'KeyZ' }, { label: 'A', key: 'KeyX' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'START', key: 'Enter' }],
+    shoulder: [{ label: 'L', key: 'KeyQ' }, { label: 'R', key: 'KeyW' }],
+    roms: [
+      { name: 'Super Mario World', url: 'https://archive.org/download/snesromsetcompleate/Super%20Mario%20World%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Mario Kart', url: 'https://archive.org/download/snesromsetcompleate/Super%20Mario%20Kart%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Mario All-Stars', url: 'https://archive.org/download/snesromsetcompleate/Super%20Mario%20All-Stars%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Mario RPG', url: 'https://archive.org/download/snesromsetcompleate/Super%20Mario%20RPG%20-%20Legend%20of%20the%20Seven%20Stars%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Yoshi\'s Island', url: 'https://archive.org/download/snesromsetcompleate/Super%20Mario%20World%202%20-%20Yoshi%27s%20Island%20%28U%29%20%28M3%29%20%28V1.1%29.zip' },
+      { name: 'Zelda: A Link to the Past', url: 'https://archive.org/download/snesromsetcompleate/Legend%20of%20Zelda%2C%20The%20-%20A%20Link%20to%20the%20Past%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Metroid', url: 'https://archive.org/download/snesromsetcompleate/Super%20Metroid%20%28JU%29%20%5B%21%5D.zip' },
+      { name: 'Chrono Trigger', url: 'https://archive.org/download/snesromsetcompleate/Chrono%20Trigger%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'EarthBound', url: 'https://archive.org/download/snesromsetcompleate/Earthbound%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Final Fantasy III', url: 'https://archive.org/download/snesromsetcompleate/Final%20Fantasy%20III%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Final Fantasy II', url: 'https://archive.org/download/snesromsetcompleate/Final%20Fantasy%20II%20%28U%29%20%28V1.1%29.zip' },
+      { name: 'Secret of Mana', url: 'https://archive.org/download/snesromsetcompleate/Secret%20of%20Mana%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Secret of Evermore', url: 'https://archive.org/download/snesromsetcompleate/Secret%20of%20Evermore%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Donkey Kong Country', url: 'https://archive.org/download/snesromsetcompleate/Donkey%20Kong%20Country%20%28U%29%20%28V1.2%29%20%5B%21%5D.zip' },
+      { name: 'Donkey Kong Country 2', url: 'https://archive.org/download/snesromsetcompleate/Donkey%20Kong%20Country%202%20-%20Diddy%27s%20Kong%20Quest%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Donkey Kong Country 3', url: 'https://archive.org/download/snesromsetcompleate/Donkey%20Kong%20Country%203%20-%20Dixie%20Kong%27s%20Double%20Trouble%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Castlevania IV', url: 'https://archive.org/download/snesromsetcompleate/Super%20Castlevania%20IV%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Castlevania: Dracula X', url: 'https://archive.org/download/snesromsetcompleate/Castlevania%20-%20Dracula%20X%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Contra III', url: 'https://archive.org/download/snesromsetcompleate/Contra%20III%20-%20The%20Alien%20Wars%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Mega Man X', url: 'https://archive.org/download/snesromsetcompleate/Mega%20Man%20X%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Mega Man X2', url: 'https://archive.org/download/snesromsetcompleate/Mega%20Man%20X%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Mega Man X3', url: 'https://archive.org/download/snesromsetcompleate/Mega%20Man%20X%203%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Mega Man VII', url: 'https://archive.org/download/snesromsetcompleate/Mega%20Man%20VII%20%28U%29.zip' },
+      { name: 'F-Zero', url: 'https://archive.org/download/snesromsetcompleate/F-ZERO%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Star Fox', url: 'https://archive.org/download/snesromsetcompleate/Star%20Fox%20%28U%29%20%28V1.2%29%20%5B%21%5D.zip' },
+      { name: 'Star Fox 2', url: 'https://archive.org/download/snesromsetcompleate/Star%20Fox%202%20%28USA%29.zip' },
+      { name: 'Killer Instinct', url: 'https://archive.org/download/snesromsetcompleate/Killer%20Instinct%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Street Fighter II', url: 'https://archive.org/download/snesromsetcompleate/Street%20Fighter%20II%20-%20The%20World%20Warrior%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'SF II Turbo', url: 'https://archive.org/download/snesromsetcompleate/Street%20Fighter%20II%20Turbo%20-%20Hyper%20Fighting%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Street Fighter II', url: 'https://archive.org/download/snesromsetcompleate/Super%20Street%20Fighter%20II%20-%20The%20New%20Challengers%20%28U%29.zip' },
+      { name: 'Street Fighter Alpha 2', url: 'https://archive.org/download/snesromsetcompleate/Street%20Fighter%20Alpha%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Mortal Kombat', url: 'https://archive.org/download/snesromsetcompleate/Mortal%20Kombat%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Mortal Kombat II', url: 'https://archive.org/download/snesromsetcompleate/Mortal%20Kombat%20II%20%28U%29%20%28V1.1%29.zip' },
+      { name: 'Mortal Kombat 3', url: 'https://archive.org/download/snesromsetcompleate/Mortal%20Kombat%203%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Ultimate Mortal Kombat 3', url: 'https://archive.org/download/snesromsetcompleate/Ultimate%20Mortal%20Kombat%203%20%28U%29.zip' },
+      { name: 'TMNT IV: Turtles in Time', url: 'https://archive.org/download/snesromsetcompleate/Teenage%20Mutant%20Ninja%20Turtles%20IV%20-%20Turtles%20in%20Time%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'TMNT: Tournament Fighters', url: 'https://archive.org/download/snesromsetcompleate/Teenage%20Mutant%20Ninja%20Turtles%20-%20Tournament%20Fighters%20%28U%29.zip' },
+      { name: 'NBA Jam', url: 'https://archive.org/download/snesromsetcompleate/NBA%20Jam%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'NBA Jam: TE', url: 'https://archive.org/download/snesromsetcompleate/NBA%20Jam%20-%20Tournament%20Edition%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Punch-Out!!', url: 'https://archive.org/download/snesromsetcompleate/Super%20Punch-Out%21%21%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Pilotwings', url: 'https://archive.org/download/snesromsetcompleate/Pilotwings%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'SimCity', url: 'https://archive.org/download/snesromsetcompleate/Sim%20City%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'SimCity 2000', url: 'https://archive.org/download/snesromsetcompleate/Sim%20City%202000%20%28U%29.zip' },
+      { name: 'Kirby Super Star', url: 'https://archive.org/download/snesromsetcompleate/Kirby%20Super%20Star%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Kirby\'s Dream Land 3', url: 'https://archive.org/download/snesromsetcompleate/Kirby%27s%20Dream%20Land%203%20%28U%29.zip' },
+      { name: 'Kirby\'s Dream Course', url: 'https://archive.org/download/snesromsetcompleate/Kirby%27s%20Dream%20Course%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'ActRaiser', url: 'https://archive.org/download/snesromsetcompleate/ActRaiser%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'ActRaiser 2', url: 'https://archive.org/download/snesromsetcompleate/ActRaiser%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Ghouls \'N Ghosts', url: 'https://archive.org/download/snesromsetcompleate/Super%20Ghouls%20%27N%20Ghosts%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Demon\'s Crest', url: 'https://archive.org/download/snesromsetcompleate/Demon%27s%20Crest%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Breath of Fire', url: 'https://archive.org/download/snesromsetcompleate/Breath%20of%20Fire%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Breath of Fire II', url: 'https://archive.org/download/snesromsetcompleate/Breath%20of%20Fire%20II%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Illusion of Gaia', url: 'https://archive.org/download/snesromsetcompleate/Illusion%20of%20Gaia%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Soul Blazer', url: 'https://archive.org/download/snesromsetcompleate/Soul%20Blazer%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Lufia II', url: 'https://archive.org/download/snesromsetcompleate/Lufia%20II%20-%20Rise%20of%20the%20Sinistrals%20%28U%29.zip' },
+      { name: 'Lufia', url: 'https://archive.org/download/snesromsetcompleate/Lufia%20%26%20The%20Fortress%20of%20Doom%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Ogre Battle', url: 'https://archive.org/download/snesromsetcompleate/Ogre%20Battle%20-%20The%20March%20of%20the%20Black%20Queen%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Harvest Moon', url: 'https://archive.org/download/snesromsetcompleate/Harvest%20Moon%20%28U%29.zip' },
+      { name: 'Earthworm Jim', url: 'https://archive.org/download/snesromsetcompleate/Earthworm%20Jim%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Earthworm Jim 2', url: 'https://archive.org/download/snesromsetcompleate/Earthworm%20Jim%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Zombies Ate My Neighbors', url: 'https://archive.org/download/snesromsetcompleate/Zombies%20Ate%20My%20Neighbors%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Pocky & Rocky', url: 'https://archive.org/download/snesromsetcompleate/Pocky%20%26%20Rocky%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Pocky & Rocky 2', url: 'https://archive.org/download/snesromsetcompleate/Pocky%20%26%20Rocky%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'R-Type III', url: 'https://archive.org/download/snesromsetcompleate/R-Type%20III%20-%20The%20Third%20Lightning%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Gradius III', url: 'https://archive.org/download/snesromsetcompleate/Gradius%20III%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Space Megaforce', url: 'https://archive.org/download/snesromsetcompleate/Space%20Megaforce%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Axelay', url: 'https://archive.org/download/snesromsetcompleate/Axelay%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'UN Squadron', url: 'https://archive.org/download/snesromsetcompleate/U.N.%20Squadron%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Star Wars', url: 'https://archive.org/download/snesromsetcompleate/Super%20Star%20Wars%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Empire Strikes Back', url: 'https://archive.org/download/snesromsetcompleate/Super%20Star%20Wars%20-%20The%20Empire%20Strikes%20Back%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Return of the Jedi', url: 'https://archive.org/download/snesromsetcompleate/Super%20Star%20Wars%20-%20Return%20of%20the%20Jedi%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'The Lost Vikings', url: 'https://archive.org/download/snesromsetcompleate/Lost%20Vikings%2C%20The%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Rock N\' Roll Racing', url: 'https://archive.org/download/snesromsetcompleate/Rock%20N%27%20Roll%20Racing%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Blackthorne', url: 'https://archive.org/download/snesromsetcompleate/Blackthorne%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Shadowrun', url: 'https://archive.org/download/snesromsetcompleate/Shadowrun%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Flashback', url: 'https://archive.org/download/snesromsetcompleate/Flashback%20-%20The%20Quest%20for%20Identity%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Out of This World', url: 'https://archive.org/download/snesromsetcompleate/Out%20of%20This%20World%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Bomberman', url: 'https://archive.org/download/snesromsetcompleate/Super%20Bomberman%20%28U%29.zip' },
+      { name: 'Super Bomberman 2', url: 'https://archive.org/download/snesromsetcompleate/Super%20Bomberman%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Sunset Riders', url: 'https://archive.org/download/snesromsetcompleate/Sunset%20Riders%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Knights of the Round', url: 'https://archive.org/download/snesromsetcompleate/Knights%20of%20the%20Round%20%28U%29.zip' },
+      { name: 'King of Dragons', url: 'https://archive.org/download/snesromsetcompleate/King%20of%20Dragons%2C%20The%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Final Fight', url: 'https://archive.org/download/snesromsetcompleate/Final%20Fight%20%28U%29.zip' },
+      { name: 'Final Fight 2', url: 'https://archive.org/download/snesromsetcompleate/Final%20Fight%202%20%28U%29.zip' },
+      { name: 'Final Fight 3', url: 'https://archive.org/download/snesromsetcompleate/Final%20Fight%203%20%28U%29.zip' },
+      { name: 'Super Double Dragon', url: 'https://archive.org/download/snesromsetcompleate/Super%20Double%20Dragon%20%28U%29.zip' },
+      { name: 'Battletoads in Battlemaniacs', url: 'https://archive.org/download/snesromsetcompleate/Battletoads%20in%20Battlemaniacs%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Battletoads & Double Dragon', url: 'https://archive.org/download/snesromsetcompleate/Battletoads%20%26%20Double%20Dragon%20-%20The%20Ultimate%20Team%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Maximum Carnage', url: 'https://archive.org/download/snesromsetcompleate/Spider-Man%20%26%20Venom%20-%20Maximum%20Carnage%20%28U%29.zip' },
+      { name: 'X-Men: Mutant Apocalypse', url: 'https://archive.org/download/snesromsetcompleate/X-Men%20-%20Mutant%20Apocalypse%20%28U%29.zip' },
+      { name: 'Marvel Super Heroes', url: 'https://archive.org/download/snesromsetcompleate/Marvel%20Super%20Heroes%20-%20War%20of%20the%20Gems%20%28U%29.zip' },
+      { name: 'Indiana Jones', url: 'https://archive.org/download/snesromsetcompleate/Indiana%20Jones%27%20Greatest%20Adventures%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Tiny Toon: Buster Busts Loose', url: 'https://archive.org/download/snesromsetcompleate/Tiny%20Toon%20Adventures%20-%20Buster%20Busts%20Loose%21%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Aladdin', url: 'https://archive.org/download/snesromsetcompleate/Aladdin%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Lion King', url: 'https://archive.org/download/snesromsetcompleate/Lion%20King%2C%20The%20%28U%29.zip' },
+      { name: 'Toy Story', url: 'https://archive.org/download/snesromsetcompleate/Toy%20Story%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Ninja Gaiden Trilogy', url: 'https://archive.org/download/snesromsetcompleate/Ninja%20Gaiden%20Trilogy%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Ninja Warriors', url: 'https://archive.org/download/snesromsetcompleate/Ninja%20Warriors%2C%20The%20%28U%29.zip' },
+      { name: 'Hagane', url: 'https://archive.org/download/snesromsetcompleate/Hagane%20%28U%29.zip' },
+      { name: 'Run Saber', url: 'https://archive.org/download/snesromsetcompleate/Run%20Saber%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Wild Guns', url: 'https://archive.org/download/snesromsetcompleate/Wild%20Guns%20%28U%29.zip' },
+      { name: 'Metal Warriors', url: 'https://archive.org/download/snesromsetcompleate/Metal%20Warriors%20%28U%29.zip' },
+      { name: 'Cybernator', url: 'https://archive.org/download/snesromsetcompleate/Cybernator%20%28U%29.zip' },
+      { name: 'Sparkster', url: 'https://archive.org/download/snesromsetcompleate/Sparkster%20%28U%29.zip' },
+      { name: 'Plok!', url: 'https://archive.org/download/snesromsetcompleate/Plok%21%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Super Turrican', url: 'https://archive.org/download/snesromsetcompleate/Super%20Turrican%20%28U%29.zip' },
+      { name: 'Super Turrican 2', url: 'https://archive.org/download/snesromsetcompleate/Super%20Turrican%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Uniracers', url: 'https://archive.org/download/snesromsetcompleate/Uniracers%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Top Gear', url: 'https://archive.org/download/snesromsetcompleate/Top%20Gear%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Top Gear 2', url: 'https://archive.org/download/snesromsetcompleate/Top%20Gear%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Stunt Race FX', url: 'https://archive.org/download/snesromsetcompleate/Stunt%20Race%20FX%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'E.V.O.: Search for Eden', url: 'https://archive.org/download/snesromsetcompleate/E.V.O.%20Search%20for%20Eden%20%28U%29.zip' },
+      { name: 'Tetris Attack', url: 'https://archive.org/download/snesromsetcompleate/Tetris%20Attack%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Bust-A-Move', url: 'https://archive.org/download/snesromsetcompleate/Bust-A-Move%20%28U%29.zip' },
+      { name: 'Civilization', url: 'https://archive.org/download/snesromsetcompleate/Civilization%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Flintstones', url: 'https://archive.org/download/snesromsetcompleate/Flintstones%2C%20The%20%28U%29.zip' },
+      { name: 'Goof Troop', url: 'https://archive.org/download/snesromsetcompleate/Goof%20Troop%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Great Circus Mystery', url: 'https://archive.org/download/snesromsetcompleate/Great%20Circus%20Mystery%20Starring%20Mickey%20%26%20Minnie%2C%20The%20%28U%29.zip' },
+      { name: 'Magical Quest: Mickey', url: 'https://archive.org/download/snesromsetcompleate/Magical%20Quest%20Starring%20Mickey%20Mouse%2C%20The%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Joe & Mac', url: 'https://archive.org/download/snesromsetcompleate/Joe%20%26%20Mac%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Doom', url: 'https://archive.org/download/snesromsetcompleate/Doom%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Wolfenstein 3D', url: 'https://archive.org/download/snesromsetcompleate/Wolfenstein%203D%20%28U%29.zip' },
+      { name: 'Robotrek', url: 'https://archive.org/download/snesromsetcompleate/Robotrek%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Sky Blazer', url: 'https://archive.org/download/snesromsetcompleate/Sky%20Blazer%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Samurai Shodown', url: 'https://archive.org/download/snesromsetcompleate/Samurai%20Shodown%20%28U%29.zip' },
+      { name: 'Desert Strike', url: 'https://archive.org/download/snesromsetcompleate/Desert%20Strike%20-%20Return%20to%20the%20Gulf%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Jungle Strike', url: 'https://archive.org/download/snesromsetcompleate/Jungle%20Strike%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Urban Strike', url: 'https://archive.org/download/snesromsetcompleate/Urban%20Strike%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Prince of Persia', url: 'https://archive.org/download/snesromsetcompleate/Prince%20of%20Persia%20%28U%29.zip' },
+      { name: 'Mickey Mania', url: 'https://archive.org/download/snesromsetcompleate/Mickey%20Mania%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'True Lies', url: 'https://archive.org/download/snesromsetcompleate/True%20Lies%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Slam Masters', url: 'https://archive.org/download/snesromsetcompleate/Saturday%20Night%20Slam%20Masters%20%28U%29.zip' },
+      { name: 'Seiken Densetsu 3', url: 'https://archive.org/download/snesromsetcompleate/Seiken%20Densetsu%203.zip' },
+      { name: 'Tactics Ogre', url: 'https://archive.org/download/snesromsetcompleate/Tactics%20Ogre%20-%20Let%20Us%20Cling%20Together.zip' },
+      { name: 'Bahamut Lagoon', url: 'https://archive.org/download/snesromsetcompleate/Bahamut%20Lagoon%20%28ENG%29%20%23%20SNES.zip' },
+      { name: 'Live A Live', url: 'https://archive.org/download/snesromsetcompleate/Live%20A%20Live.zip' },
+      { name: 'Treasure Hunter G', url: 'https://archive.org/download/snesromsetcompleate/Treasure%20Hunter%20G.zip' },
+      { name: 'Legend of Mystical Ninja', url: 'https://archive.org/download/snesromsetcompleate/Legend%20of%20The%20Mystical%20Ninja%2C%20The%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'World Heroes 2', url: 'https://archive.org/download/snesromsetcompleate/World%20Heroes%202%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Bart\'s Nightmare', url: 'https://archive.org/download/snesromsetcompleate/Simpsons%2C%20The%20-%20Bart%27s%20Nightmare%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Spider-Man', url: 'https://archive.org/download/snesromsetcompleate/Spider-Man%20%28U%29.zip' },
+      { name: 'Wario\'s Woods', url: 'https://archive.org/download/snesromsetcompleate/Wario%27s%20Woods%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Lemmings', url: 'https://archive.org/download/snesromsetcompleate/Lemmings%20%28U%29%20%28V1.1%29%20%5B%21%5D.zip' },
+      { name: 'Hook', url: 'https://archive.org/download/snesromsetcompleate/Hook%20%28U%29%20%2829252%29.zip' },
+      { name: 'B.O.B.', url: 'https://archive.org/download/snesromsetcompleate/B.O.B.%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Clay Fighter', url: 'https://archive.org/download/snesromsetcompleate/Clay%20Fighter%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Bugs Bunny: Rabbit Rampage', url: 'https://archive.org/download/snesromsetcompleate/Bugs%20Bunny%20-%20Rabbit%20Rampage%20%28U%29%20%5B%21%5D.zip' },
+      { name: 'Bubsy', url: 'https://archive.org/download/snesromsetcompleate/Bubsy%20in%20Claws%20Encounters%20of%20the%20Furred%20Kind%20%28U%29%20%5B%21%5D.zip' },
+    ]
+  },
+  genesis: {
+    name: 'GENESIS', full: 'Sega Genesis / Mega Drive',
+    core: 'segaMD', color: '#1890ff', year: '1988',
+    exts: ['.gen', '.md', '.bin', '.smd'],
+    face: [{ label: 'A', key: 'KeyA' }, { label: 'B', key: 'KeyZ' }, { label: 'C', key: 'KeyX' }],
+    center: [{ label: 'START', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Sonic the Hedgehog', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sonic%20the%20Hedgehog%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Sonic the Hedgehog 2', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sonic%20the%20Hedgehog%202%20%28World%29.zip' },
+      { name: 'Sonic the Hedgehog 3', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sonic%20the%20Hedgehog%203%20%28USA%29.zip' },
+      { name: 'Sonic & Knuckles', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sonic%20%26%20Knuckles%20%28World%29.zip' },
+      { name: 'Streets of Rage', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Streets%20of%20Rage%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Streets of Rage 2', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Streets%20of%20Rage%202%20%28USA%29.zip' },
+      { name: 'Streets of Rage 3', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Streets%20of%20Rage%203%20%28USA%29.zip' },
+      { name: 'Gunstar Heroes', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Gunstar%20Heroes%20%28USA%29.zip' },
+      { name: 'Shinobi III', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Shinobi%20III%20-%20Return%20of%20the%20Ninja%20Master%20%28USA%29.zip' },
+      { name: 'Revenge of Shinobi', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Revenge%20of%20Shinobi%2C%20The%20%28USA%29.zip' },
+      { name: 'Golden Axe', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Golden%20Axe%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Golden Axe II', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Golden%20Axe%20II%20%28USA%29.zip' },
+      { name: 'Golden Axe III', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Golden%20Axe%20III%20%28USA%29.zip' },
+      { name: 'Altered Beast', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Altered%20Beast%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Phantasy Star II', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Phantasy%20Star%20II%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Phantasy Star IV', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Phantasy%20Star%20IV%20%28USA%29.zip' },
+      { name: 'Shining Force', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Shining%20Force%20%28USA%29.zip' },
+      { name: 'Shining Force II', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Shining%20Force%20II%20%28USA%29.zip' },
+      { name: 'Landstalker', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Landstalker%20-%20The%20Treasures%20of%20King%20Nole%20%28USA%29.zip' },
+      { name: 'Beyond Oasis', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Beyond%20Oasis%20%28USA%29.zip' },
+      { name: 'Comix Zone', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Comix%20Zone%20%28USA%29.zip' },
+      { name: 'ToeJam & Earl', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/ToeJam%20%26%20Earl%20%28USA%2C%20Europe%29.zip' },
+      { name: 'ToeJam & Earl: Panic on Funkotron', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/ToeJam%20%26%20Earl%20in%20Panic%20on%20Funkotron%20%28USA%29.zip' },
+      { name: 'Ecco the Dolphin', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Ecco%20the%20Dolphin%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Vectorman', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Vectorman%20%28USA%29.zip' },
+      { name: 'Vectorman 2', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Vectorman%202%20%28USA%29.zip' },
+      { name: 'Earthworm Jim', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Earthworm%20Jim%20%28USA%29.zip' },
+      { name: 'Earthworm Jim 2', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Earthworm%20Jim%202%20%28USA%29.zip' },
+      { name: 'Contra: Hard Corps', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Contra%20-%20Hard%20Corps%20%28USA%29.zip' },
+      { name: 'Castlevania: Bloodlines', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Castlevania%20-%20Bloodlines%20%28USA%29.zip' },
+      { name: 'Aladdin', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Aladdin%20%28USA%29.zip' },
+      { name: 'Lion King', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Lion%20King%2C%20The%20%28USA%29.zip' },
+      { name: 'World of Illusion', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/World%20of%20Illusion%20Starring%20Mickey%20Mouse%20and%20Donald%20Duck%20%28USA%29.zip' },
+      { name: 'Castle of Illusion', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Castle%20of%20Illusion%20Starring%20Mickey%20Mouse%20%28USA%29.zip' },
+      { name: 'Rocket Knight Adventures', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Rocket%20Knight%20Adventures%20%28USA%29.zip' },
+      { name: 'Sparkster', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sparkster%20%28USA%29.zip' },
+      { name: 'Dynamite Headdy', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Dynamite%20Headdy%20%28USA%29.zip' },
+      { name: 'Ristar', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Ristar%20%28USA%29.zip' },
+      { name: 'Kid Chameleon', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Kid%20Chameleon%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Sonic Spinball', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Sonic%20Spinball%20%28USA%29.zip' },
+      { name: 'Dr. Robotnik\'s Mean Bean Machine', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Dr.%20Robotnik%27s%20Mean%20Bean%20Machine%20%28USA%29.zip' },
+      { name: 'Columns', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Columns%20%28World%29.zip' },
+      { name: 'Thunder Force III', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Thunder%20Force%20III%20%28USA%29.zip' },
+      { name: 'Thunder Force IV', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Thunder%20Force%20IV%20%28Japan%29.zip' },
+      { name: 'Herzog Zwei', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Herzog%20Zwei%20%28USA%29.zip' },
+      { name: 'Dune: The Battle for Arrakis', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Dune%20-%20The%20Battle%20for%20Arrakis%20%28USA%29.zip' },
+      { name: 'Desert Strike', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Desert%20Strike%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Jungle Strike', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Jungle%20Strike%20%28USA%29.zip' },
+      { name: 'Road Rash', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Road%20Rash%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Road Rash II', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Road%20Rash%20II%20%28USA%29.zip' },
+      { name: 'NHL \'94', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/NHL%20%2794%20%28USA%29.zip' },
+      { name: 'NBA Jam', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/NBA%20Jam%20%28USA%29.zip' },
+      { name: 'Madden NFL \'94', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Madden%20NFL%20%2794%20%28USA%29.zip' },
+      { name: 'Mortal Kombat', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Mortal%20Kombat%20%28USA%29.zip' },
+      { name: 'Mortal Kombat II', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Mortal%20Kombat%20II%20%28USA%29.zip' },
+      { name: 'Mortal Kombat 3', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Mortal%20Kombat%203%20%28USA%29.zip' },
+      { name: 'Street Fighter II: SCE', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Street%20Fighter%20II%27%20-%20Special%20Champion%20Edition%20%28USA%29.zip' },
+      { name: 'Eternal Champions', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Eternal%20Champions%20%28USA%29.zip' },
+      { name: 'General Chaos', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/General%20Chaos%20%28USA%29.zip' },
+      { name: 'Zombies Ate My Neighbors', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Zombies%20Ate%20My%20Neighbors%20%28USA%29.zip' },
+      { name: 'Battletoads', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Battletoads%20%28USA%29.zip' },
+      { name: 'Toejam & Earl 3', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/ToeJam%20%26%20Earl%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Wonder Boy in Monster World', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Wonder%20Boy%20in%20Monster%20World%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Monster World IV', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Monster%20World%20IV%20%28Japan%29.zip' },
+      { name: 'Light Crusader', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Light%20Crusader%20%28USA%29.zip' },
+      { name: 'Ranger X', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Ranger-X%20%28USA%29.zip' },
+      { name: 'Alien Soldier', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Alien%20Soldier%20%28Europe%29.zip' },
+      { name: 'Ghouls\'n Ghosts', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Ghouls%27n%20Ghosts%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Bonanza Bros.', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Bonanza%20Bros.%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Michael Jackson\'s Moonwalker', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Michael%20Jackson%27s%20Moonwalker%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Micro Machines 2', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/Micro%20Machines%202%20-%20Turbo%20Tournament%20%28USA%29.zip' },
+      { name: 'X-Men 2: Clone Wars', url: 'https://archive.org/download/sega-genesis-megadrive-rom-collection-usa/X-Men%202%20-%20Clone%20Wars%20%28USA%29.zip' },
+    ]
+  },
+  arcade: {
+    name: 'ARCADE', full: 'Arcade / Neo Geo (FBNeo)',
+    core: 'arcade', color: '#ff6b35', year: '1990',
+    exts: ['.zip'],
+    face: [{ label: 'A', key: 'KeyZ' }, { label: 'B', key: 'KeyX' }, { label: 'C', key: 'KeyA' }, { label: 'D', key: 'KeyS' }],
+    center: [{ label: 'COIN', key: 'ShiftRight' }, { label: 'START', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'King of Fighters \'94', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof94.zip' },
+      { name: 'King of Fighters \'95', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof95.zip' },
+      { name: 'King of Fighters \'96', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof96.zip' },
+      { name: 'King of Fighters \'97', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof97.zip' },
+      { name: 'King of Fighters \'98', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof98.zip' },
+      { name: 'King of Fighters \'99', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof99.zip' },
+      { name: 'King of Fighters 2000', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof2000.zip' },
+      { name: 'King of Fighters 2001', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof2001.zip' },
+      { name: 'King of Fighters 2002', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof2002.zip' },
+      { name: 'King of Fighters 2003', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kof2003.zip' },
+      { name: 'Metal Slug', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslug.zip' },
+      { name: 'Metal Slug 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslug2.zip' },
+      { name: 'Metal Slug X', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslugx.zip' },
+      { name: 'Metal Slug 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslug3.zip' },
+      { name: 'Metal Slug 4', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslug4.zip' },
+      { name: 'Metal Slug 5', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mslug5.zip' },
+      { name: 'Samurai Shodown', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsho.zip' },
+      { name: 'Samurai Shodown II', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsho2.zip' },
+      { name: 'Samurai Shodown III', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsho3.zip' },
+      { name: 'Samurai Shodown IV', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsho4.zip' },
+      { name: 'Samurai Shodown V', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsho5.zip' },
+      { name: 'Samurai Shodown V Sp', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/samsh5sp.zip' },
+      { name: 'Garou: Mark of the Wolves', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/garou.zip' },
+      { name: 'Fatal Fury', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/fatfury1.zip' },
+      { name: 'Fatal Fury 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/fatfury2.zip' },
+      { name: 'Fatal Fury 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/fatfury3.zip' },
+      { name: 'Fatal Fury Special', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/fatfursp.zip' },
+      { name: 'Real Bout Fatal Fury', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/rbff1.zip' },
+      { name: 'Real Bout FF 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/rbff2.zip' },
+      { name: 'Real Bout FF Special', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/rbffspec.zip' },
+      { name: 'Art of Fighting', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/aof.zip' },
+      { name: 'Art of Fighting 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/aof2.zip' },
+      { name: 'Art of Fighting 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/aof3.zip' },
+      { name: 'Last Blade', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/lastblad.zip' },
+      { name: 'Last Blade 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/lastbld2.zip' },
+      { name: 'SNK vs. Capcom', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/svc.zip' },
+      { name: 'Waku Waku 7', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/wakuwak7.zip' },
+      { name: 'Windjammers', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/wjammers.zip' },
+      { name: 'Blazing Star', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/blazstar.zip' },
+      { name: 'Pulstar', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/pulstar.zip' },
+      { name: 'Neo Turf Masters', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/turfmast.zip' },
+      { name: 'Shock Troopers', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/shocktro.zip' },
+      { name: 'Shock Troopers 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/shocktr2.zip' },
+      { name: 'Spin Master', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/spinmast.zip' },
+      { name: 'Top Hunter', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/tophuntr.zip' },
+      { name: 'Magician Lord', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/maglord.zip' },
+      { name: 'Blue\'s Journey', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/bjourney.zip' },
+      { name: 'Alpha Mission II', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/alpham2.zip' },
+      { name: 'Cyber-Lip', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/cyberlip.zip' },
+      { name: 'Nightmare in the Dark', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/nitd.zip' },
+      { name: 'Rage of the Dragons', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/rotd.zip' },
+      { name: 'Breakers', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/breakers.zip' },
+      { name: 'Breakers Revenge', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/breakrev.zip' },
+      { name: 'World Heroes', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/wh1.zip' },
+      { name: 'World Heroes 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/wh2.zip' },
+      { name: 'World Heroes 2 Jet', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/wh2j.zip' },
+      { name: 'World Heroes Perfect', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/whp.zip' },
+      { name: 'Kizuna Encounter', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kizuna.zip' },
+      { name: 'Galaxy Fight', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/galaxyfg.zip' },
+      { name: 'Ninja Master\'s', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ninjamas.zip' },
+      { name: 'Kabuki Klash', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kabukikl.zip' },
+      { name: 'Voltage Fighter Gowcaizer', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/gowcaizr.zip' },
+      { name: 'Karnov\'s Revenge', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/karnovr.zip' },
+      { name: 'Aero Fighters 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sonicwi2.zip' },
+      { name: 'Aero Fighters 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sonicwi3.zip' },
+      { name: 'Strikers 1945 Plus', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/s1945p.zip' },
+      { name: 'Viewpoint', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/viewpoin.zip' },
+      { name: 'Zed Blade', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/zedblade.zip' },
+      { name: 'Last Resort', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/lresort.zip' },
+      { name: 'Over Top', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/overtop.zip' },
+      { name: 'King of the Monsters', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kotm.zip' },
+      { name: 'King of the Monsters 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/kotm2.zip' },
+      { name: 'Baseball Stars 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/bstars2.zip' },
+      { name: 'Neo Bomberman', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/neobombe.zip' },
+      { name: 'Puzzle Bobble', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/pbobblen.zip' },
+      { name: 'Magical Drop 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/magdrop2.zip' },
+      { name: 'Magical Drop 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/magdrop3.zip' },
+      { name: 'Sengoku 3', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sengoku3.zip' },
+      { name: 'Ganryu', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ganryu.zip' },
+      { name: 'Zupapa!', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/zupapa.zip' },
+      { name: 'Captain Tomaday', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ctomaday.zip' },
+      { name: 'Iron Clad', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ironclad.zip' },
+      { name: 'NAM-1975', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/nam1975.zip' },
+      { name: 'Robo Army', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/roboarmy.zip' },
+      { name: 'Burning Fight', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/burningf.zip' },
+      { name: 'Eight Man', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/eightman.zip' },
+      { name: 'Mutation Nation', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/mutnat.zip' },
+      { name: 'Ninja Combat', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ncombat.zip' },
+      { name: 'Ninja Commando', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ncommand.zip' },
+      { name: 'Crossed Swords', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/crsword.zip' },
+      { name: 'Ghost Pilots', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/gpilots.zip' },
+      { name: 'Andro Dunos', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/androdun.zip' },
+      { name: 'Prehistoric Isle 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/preisle2.zip' },
+      { name: '3 Count Bout', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/3countb.zip' },
+      { name: 'Double Dragon (NG)', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/doubledr.zip' },
+      { name: 'Super Dodge Ball', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sdodgeb.zip' },
+      { name: 'Street Hoop', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/strhoop.zip' },
+      { name: 'Neo-Geo Cup \'98', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/neocup98.zip' },
+      { name: '2020 Super Baseball', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/2020bb.zip' },
+      { name: 'Stakes Winner', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/stakwin.zip' },
+      { name: 'Savage Reign', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/savagere.zip' },
+      { name: 'Pop \'n Bounce', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/popbounc.zip' },
+      { name: 'Sengoku', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sengoku.zip' },
+      { name: 'Sengoku 2', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/sengoku2.zip' },
+      { name: 'Football Frenzy', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/fbfrenzy.zip' },
+      { name: 'Top Player\'s Golf', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/tpgolf.zip' },
+      { name: 'Battle Flip Shot', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/flipshot.zip' },
+      { name: 'Super Sidekicks', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/ssideki.zip' },
+      { name: 'Matrimelee', url: 'https://archive.org/download/neogeoaesmvscomplete/Neo%20Geo%20AES%20-%20MVS/MAME%20romset/matrim.zip' },
+    ]
+  },
+  n64: {
+    name: 'N64', full: 'Nintendo 64',
+    core: 'n64', color: '#2ecc71', year: '1996',
+    exts: ['.z64', '.n64', '.v64'],
+    face: [{ label: 'B', key: 'KeyZ' }, { label: 'A', key: 'KeyX' }],
+    center: [{ label: 'START', key: 'Enter' }],
+    shoulder: [{ label: 'L', key: 'KeyQ' }, { label: 'R', key: 'KeyW' }],
+    roms: [
+      { name: 'Super Mario 64', url: 'https://archive.org/download/nintendo64/Super%20Mario%2064%20%28US%29.zip' },
+      { name: 'Legend of Zelda: Ocarina of Time', url: 'https://archive.org/download/nintendo64/Legend%20of%20Zelda%2C%20The%20-%20Ocarina%20of%20Time%20%28US%29.zip' },
+      { name: 'Legend of Zelda: Majora\'s Mask', url: 'https://archive.org/download/nintendo64/Legend%20of%20Zelda%2C%20The%20-%20Majora%27s%20Mask%20%28US%29.zip' },
+      { name: 'Mario Kart 64', url: 'https://archive.org/download/nintendo64/Mario%20Kart%2064%20%28US%29.zip' },
+      { name: 'Super Smash Bros.', url: 'https://archive.org/download/nintendo64/Super%20Smash%20Bros.%20%28US%29.zip' },
+      { name: 'GoldenEye 007', url: 'https://archive.org/download/nintendo64/GoldenEye%20007%20%28US%29.zip' },
+      { name: 'Perfect Dark', url: 'https://archive.org/download/nintendo64/Perfect%20Dark%20%28US%29.zip' },
+      { name: 'Banjo-Kazooie', url: 'https://archive.org/download/nintendo64/Banjo-Kazooie%20%28US%29.zip' },
+      { name: 'Banjo-Tooie', url: 'https://archive.org/download/nintendo64/Banjo-Tooie%20%28US%29.zip' },
+      { name: 'Donkey Kong 64', url: 'https://archive.org/download/nintendo64/Donkey%20Kong%2064%20%28US%29.zip' },
+      { name: 'Paper Mario', url: 'https://archive.org/download/nintendo64/Paper%20Mario%20%28US%29.zip' },
+      { name: 'Star Fox 64', url: 'https://archive.org/download/nintendo64/Star%20Fox%2064%20%28US%29.zip' },
+      { name: 'F-Zero X', url: 'https://archive.org/download/nintendo64/F-Zero%20X%20%28US%29.zip' },
+      { name: 'Wave Race 64', url: 'https://archive.org/download/nintendo64/Wave%20Race%2064%20%28US%29.zip' },
+      { name: '1080 Snowboarding', url: 'https://archive.org/download/nintendo64/1080%20Snowboarding%20%28US%29.zip' },
+      { name: 'Diddy Kong Racing', url: 'https://archive.org/download/nintendo64/Diddy%20Kong%20Racing%20%28US%29.zip' },
+      { name: 'Mario Party', url: 'https://archive.org/download/nintendo64/Mario%20Party%20%28US%29.zip' },
+      { name: 'Mario Party 2', url: 'https://archive.org/download/nintendo64/Mario%20Party%202%20%28US%29.zip' },
+      { name: 'Mario Party 3', url: 'https://archive.org/download/nintendo64/Mario%20Party%203%20%28US%29.zip' },
+      { name: 'Mario Golf', url: 'https://archive.org/download/nintendo64/Mario%20Golf%20%28US%29.zip' },
+      { name: 'Mario Tennis', url: 'https://archive.org/download/nintendo64/Mario%20Tennis%20%28US%29.zip' },
+      { name: 'Kirby 64: The Crystal Shards', url: 'https://archive.org/download/nintendo64/Kirby%2064%20-%20The%20Crystal%20Shards%20%28US%29.zip' },
+      { name: 'Yoshi\'s Story', url: 'https://archive.org/download/nintendo64/Yoshi%27s%20Story%20%28US%29.zip' },
+      { name: 'Conker\'s Bad Fur Day', url: 'https://archive.org/download/nintendo64/Conker%27s%20Bad%20Fur%20Day%20%28US%29.zip' },
+      { name: 'Blast Corps', url: 'https://archive.org/download/nintendo64/Blast%20Corps%20%28US%29.zip' },
+      { name: 'Jet Force Gemini', url: 'https://archive.org/download/nintendo64/Jet%20Force%20Gemini%20%28US%29.zip' },
+      { name: 'Turok: Dinosaur Hunter', url: 'https://archive.org/download/nintendo64/Turok%20-%20Dinosaur%20Hunter%20%28US%29.zip' },
+      { name: 'Turok 2: Seeds of Evil', url: 'https://archive.org/download/nintendo64/Turok%202%20-%20Seeds%20of%20Evil%20%28US%29.zip' },
+      { name: 'Doom 64', url: 'https://archive.org/download/nintendo64/Doom%2064%20%28US%29.zip' },
+      { name: 'Quake 64', url: 'https://archive.org/download/nintendo64/Quake%2064%20%28US%29.zip' },
+      { name: 'Bomberman 64', url: 'https://archive.org/download/nintendo64/Bomberman%2064%20%28US%29.zip' },
+      { name: 'Pokémon Stadium', url: 'https://archive.org/download/nintendo64/Pokemon%20Stadium%20%28US%29.zip' },
+      { name: 'Pokémon Stadium 2', url: 'https://archive.org/download/nintendo64/Pokemon%20Stadium%202%20%28US%29.zip' },
+      { name: 'Pokémon Snap', url: 'https://archive.org/download/nintendo64/Pokemon%20Snap%20%28US%29.zip' },
+      { name: 'Pokémon Puzzle League', url: 'https://archive.org/download/nintendo64/Pokemon%20Puzzle%20League%20%28US%29.zip' },
+      { name: 'Rayman 2', url: 'https://archive.org/download/nintendo64/Rayman%202%20-%20The%20Great%20Escape%20%28US%29.zip' },
+      { name: 'Mega Man 64', url: 'https://archive.org/download/nintendo64/Mega%20Man%2064%20%28US%29.zip' },
+      { name: 'Excitebike 64', url: 'https://archive.org/download/nintendo64/Excitebike%2064%20%28US%29.zip' },
+      { name: 'Pilotwings 64', url: 'https://archive.org/download/nintendo64/Pilotwings%2064%20%28US%29.zip' },
+      { name: 'Ogre Battle 64', url: 'https://archive.org/download/nintendo64/Ogre%20Battle%2064%20-%20Person%20of%20Lordly%20Caliber%20%28US%29.zip' },
+      { name: 'Harvest Moon 64', url: 'https://archive.org/download/nintendo64/Harvest%20Moon%2064%20%28US%29.zip' },
+      { name: 'Mischief Makers', url: 'https://archive.org/download/nintendo64/Mischief%20Makers%20%28US%29.zip' },
+      { name: 'Mystical Ninja Starring Goemon', url: 'https://archive.org/download/nintendo64/Mystical%20Ninja%20Starring%20Goemon%20%28US%29.zip' },
+      { name: 'Sin and Punishment', url: 'https://archive.org/download/nintendo64/Sin%20and%20Punishment%20%28JP%29.zip' },
+      { name: 'Snowboard Kids', url: 'https://archive.org/download/nintendo64/Snowboard%20Kids%20%28US%29.zip' },
+      { name: 'Tony Hawk\'s Pro Skater', url: 'https://archive.org/download/nintendo64/Tony%20Hawk%27s%20Pro%20Skater%20%28US%29.zip' },
+      { name: 'Tony Hawk\'s Pro Skater 2', url: 'https://archive.org/download/nintendo64/Tony%20Hawk%27s%20Pro%20Skater%202%20%28US%29.zip' },
+      { name: 'WCW/NWO Revenge', url: 'https://archive.org/download/nintendo64/WCW-NWO%20Revenge%20%28US%29.zip' },
+      { name: 'WWF No Mercy', url: 'https://archive.org/download/nintendo64/WWF%20No%20Mercy%20%28US%29.zip' },
+      { name: 'NFL Blitz', url: 'https://archive.org/download/nintendo64/NFL%20Blitz%20%28US%29.zip' },
+      { name: 'NBA Hangtime', url: 'https://archive.org/download/nintendo64/NBA%20Hangtime%20%28US%29.zip' },
+      { name: 'Ridge Racer 64', url: 'https://archive.org/download/nintendo64/Ridge%20Racer%2064%20%28US%29.zip' },
+      { name: 'Beetle Adventure Racing', url: 'https://archive.org/download/nintendo64/Beetle%20Adventure%20Racing%20%28US%29.zip' },
+      { name: 'Cruisin\' USA', url: 'https://archive.org/download/nintendo64/Cruis%27n%20USA%20%28US%29.zip' },
+      { name: 'San Francisco Rush', url: 'https://archive.org/download/nintendo64/San%20Francisco%20Rush%20-%20Extreme%20Racing%20%28US%29.zip' },
+      { name: 'Vigilante 8', url: 'https://archive.org/download/nintendo64/Vigilante%208%20%28US%29.zip' },
+      { name: 'Star Wars: Rogue Squadron', url: 'https://archive.org/download/nintendo64/Star%20Wars%20-%20Rogue%20Squadron%20%28US%29.zip' },
+      { name: 'Star Wars: Shadows of the Empire', url: 'https://archive.org/download/nintendo64/Star%20Wars%20-%20Shadows%20of%20the%20Empire%20%28US%29.zip' },
+      { name: 'Body Harvest', url: 'https://archive.org/download/nintendo64/Body%20Harvest%20%28US%29.zip' },
+      { name: 'Resident Evil 2', url: 'https://archive.org/download/nintendo64/Resident%20Evil%202%20%28US%29.zip' },
+      { name: 'Space Station Silicon Valley', url: 'https://archive.org/download/nintendo64/Space%20Station%20Silicon%20Valley%20%28US%29.zip' },
+    ]
+  },
+  atari2600: {
+    name: 'ATARI', full: 'Atari 2600',
+    core: 'atari2600', color: '#e67e22', year: '1977',
+    exts: ['.a26', '.bin'],
+    face: [{ label: 'FIRE', key: 'KeyZ' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'RESET', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Pitfall!', url: 'https://archive.org/download/atari_2600_rom_collection/Pitfall%21%20%281982%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'River Raid', url: 'https://archive.org/download/atari_2600_rom_collection/River%20Raid%20%281982%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Frogger', url: 'https://archive.org/download/atari_2600_rom_collection/Frogger%20%281982%29%20%28Parker%20Bros%29%20%5B%21%5D.a26' },
+      { name: 'Space Invaders', url: 'https://archive.org/download/atari_2600_rom_collection/Space%20Invaders%20%281980%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Pac-Man', url: 'https://archive.org/download/atari_2600_rom_collection/Pac-Man%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Ms. Pac-Man', url: 'https://archive.org/download/atari_2600_rom_collection/Ms.%20Pac-Man%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Asteroids', url: 'https://archive.org/download/atari_2600_rom_collection/Asteroids%20%281981%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Missile Command', url: 'https://archive.org/download/atari_2600_rom_collection/Missile%20Command%20%281981%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Centipede', url: 'https://archive.org/download/atari_2600_rom_collection/Centipede%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Breakout', url: 'https://archive.org/download/atari_2600_rom_collection/Breakout%20%281978%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Combat', url: 'https://archive.org/download/atari_2600_rom_collection/Combat%20%281977%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Adventure', url: 'https://archive.org/download/atari_2600_rom_collection/Adventure%20%281980%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Defender', url: 'https://archive.org/download/atari_2600_rom_collection/Defender%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Yars\' Revenge', url: 'https://archive.org/download/atari_2600_rom_collection/Yars%27%20Revenge%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Demon Attack', url: 'https://archive.org/download/atari_2600_rom_collection/Demon%20Attack%20%281982%29%20%28Imagic%29%20%5B%21%5D.a26' },
+      { name: 'Berzerk', url: 'https://archive.org/download/atari_2600_rom_collection/Berzerk%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Enduro', url: 'https://archive.org/download/atari_2600_rom_collection/Enduro%20%281983%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Keystone Kapers', url: 'https://archive.org/download/atari_2600_rom_collection/Keystone%20Kapers%20%281983%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Kaboom!', url: 'https://archive.org/download/atari_2600_rom_collection/Kaboom%21%20%281981%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Seaquest', url: 'https://archive.org/download/atari_2600_rom_collection/Seaquest%20%281983%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Chopper Command', url: 'https://archive.org/download/atari_2600_rom_collection/Chopper%20Command%20%281982%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Barnstorming', url: 'https://archive.org/download/atari_2600_rom_collection/Barnstorming%20%281982%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Freeway', url: 'https://archive.org/download/atari_2600_rom_collection/Freeway%20%281981%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Skiing', url: 'https://archive.org/download/atari_2600_rom_collection/Skiing%20%281980%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Boxing', url: 'https://archive.org/download/atari_2600_rom_collection/Boxing%20%281980%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Tennis', url: 'https://archive.org/download/atari_2600_rom_collection/Tennis%20%281981%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Ice Hockey', url: 'https://archive.org/download/atari_2600_rom_collection/Ice%20Hockey%20%281981%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Fishing Derby', url: 'https://archive.org/download/atari_2600_rom_collection/Fishing%20Derby%20%281980%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Stampede', url: 'https://archive.org/download/atari_2600_rom_collection/Stampede%20%281981%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Phoenix', url: 'https://archive.org/download/atari_2600_rom_collection/Phoenix%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Joust', url: 'https://archive.org/download/atari_2600_rom_collection/Joust%20%281983%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Galaxian', url: 'https://archive.org/download/atari_2600_rom_collection/Galaxian%20%281983%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Donkey Kong', url: 'https://archive.org/download/atari_2600_rom_collection/Donkey%20Kong%20%281982%29%20%28Coleco%29%20%5B%21%5D.a26' },
+      { name: 'Q-Bert', url: 'https://archive.org/download/atari_2600_rom_collection/Q-bert%20%281983%29%20%28Parker%20Bros%29%20%5B%21%5D.a26' },
+      { name: 'H.E.R.O.', url: 'https://archive.org/download/atari_2600_rom_collection/H.E.R.O.%20%281984%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Jungle Hunt', url: 'https://archive.org/download/atari_2600_rom_collection/Jungle%20Hunt%20%281983%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Atlantis', url: 'https://archive.org/download/atari_2600_rom_collection/Atlantis%20%281982%29%20%28Imagic%29%20%5B%21%5D.a26' },
+      { name: 'Cosmic Ark', url: 'https://archive.org/download/atari_2600_rom_collection/Cosmic%20Ark%20%281982%29%20%28Imagic%29%20%5B%21%5D.a26' },
+      { name: 'Robot Tank', url: 'https://archive.org/download/atari_2600_rom_collection/Robot%20Tank%20%281983%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Solaris', url: 'https://archive.org/download/atari_2600_rom_collection/Solaris%20%281986%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Gravitar', url: 'https://archive.org/download/atari_2600_rom_collection/Gravitar%20%281983%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Star Voyager', url: 'https://archive.org/download/atari_2600_rom_collection/Star%20Voyager%20%281982%29%20%28Imagic%29%20%5B%21%5D.a26' },
+      { name: 'Megamania', url: 'https://archive.org/download/atari_2600_rom_collection/MegaMania%20%281982%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Warlords', url: 'https://archive.org/download/atari_2600_rom_collection/Warlords%20%281981%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Surround', url: 'https://archive.org/download/atari_2600_rom_collection/Surround%20%281977%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Bowling', url: 'https://archive.org/download/atari_2600_rom_collection/Bowling%20%281979%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Night Driver', url: 'https://archive.org/download/atari_2600_rom_collection/Night%20Driver%20%281980%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Haunted House', url: 'https://archive.org/download/atari_2600_rom_collection/Haunted%20House%20%281982%29%20%28Atari%29%20%5B%21%5D.a26' },
+      { name: 'Dragster', url: 'https://archive.org/download/atari_2600_rom_collection/Dragster%20%281980%29%20%28Activision%29%20%5B%21%5D.a26' },
+      { name: 'Spider Fighter', url: 'https://archive.org/download/atari_2600_rom_collection/Spider%20Fighter%20%281983%29%20%28Activision%29%20%5B%21%5D.a26' },
+    ]
+  },
+  segaMS: {
+    name: 'SMS', full: 'Sega Master System',
+    core: 'segaMS', color: '#3498db', year: '1985',
+    exts: ['.sms'],
+    face: [{ label: '1', key: 'KeyZ' }, { label: '2', key: 'KeyX' }],
+    center: [{ label: 'PAUSE', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Alex Kidd in Miracle World', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Alex%20Kidd%20in%20Miracle%20World%20%28USA%2C%20Europe%29%20%28v1.1%29.zip' },
+      { name: 'Sonic the Hedgehog', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Sonic%20The%20Hedgehog%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Sonic the Hedgehog 2', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Sonic%20The%20Hedgehog%202%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Wonder Boy III: Dragon\'s Trap', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Wonder%20Boy%20III%20-%20The%20Dragon%27s%20Trap%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Wonder Boy in Monster Land', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Wonder%20Boy%20in%20Monster%20Land%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Phantasy Star', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Phantasy%20Star%20%28USA%2C%20Europe%29%20%28v2.0%29.zip' },
+      { name: 'Shinobi', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Shinobi%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Golden Axe Warrior', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Golden%20Axe%20Warrior%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Castle of Illusion', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Castle%20of%20Illusion%20Starring%20Mickey%20Mouse%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Land of Illusion', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Land%20of%20Illusion%20starring%20Mickey%20Mouse%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Columns', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Columns%20%28USA%29.zip' },
+      { name: 'Hang-On / Safari Hunt', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Hang-On%20%26%20Safari%20Hunt%20%28USA%2C%20Europe%29.zip' },
+      { name: 'OutRun', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Out%20Run%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Space Harrier', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Space%20Harrier%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Fantasy Zone', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Fantasy%20Zone%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Fantasy Zone II', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Fantasy%20Zone%20II%20%28USA%2C%20Europe%29.zip' },
+      { name: 'R-Type', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/R-Type%20%28USA%2C%20Europe%29.zip' },
+      { name: 'After Burner', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/After%20Burner%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Double Dragon', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Double%20Dragon%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Ninja Gaiden', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Ninja%20Gaiden%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Rastan', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Rastan%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Psycho Fox', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Psycho%20Fox%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Zillion', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Zillion%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Master of Darkness', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Master%20of%20Darkness%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Golvellius', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Golvellius%20-%20Valley%20of%20Doom%20%28USA%2C%20Europe%29.zip' },
+      { name: 'California Games', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/California%20Games%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Global Defense', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Global%20Defense%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Choplifter', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Choplifter%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Black Belt', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Black%20Belt%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Penguin Land', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Penguin%20Land%20%28USA%29.zip' },
+      { name: 'Ghost House', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Ghost%20House%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Kenseiden', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Kenseiden%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Aztec Adventure', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Aztec%20Adventure%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Power Strike', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Power%20Strike%20%28USA%2C%20Europe%29.zip' },
+      { name: 'Spy vs Spy', url: 'https://archive.org/download/sega-master-system-romset-ultra-us/Spy%20vs.%20Spy%20%28USA%2C%20Europe%29.zip' },
+    ]
+  },
+  pce: {
+    name: 'TG-16', full: 'TurboGrafx-16 / PC Engine',
+    core: 'pce', color: '#e74c3c', year: '1987',
+    exts: ['.pce'],
+    face: [{ label: 'II', key: 'KeyZ' }, { label: 'I', key: 'KeyX' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'RUN', key: 'Enter' }],
+    shoulder: [],
+    roms: [
+      { name: 'Bonk\'s Adventure', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Bonk%27s%20Adventure%20%28USA%29.zip' },
+      { name: 'Bonk\'s Revenge', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Bonk%27s%20Revenge%20%28USA%29.zip' },
+      { name: 'Soldier Blade', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Soldier%20Blade%20%28USA%29.zip' },
+      { name: 'Blazing Lazers', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Blazing%20Lazers%20%28USA%29.zip' },
+      { name: 'R-Type', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/R-Type%20%28USA%29.zip' },
+      { name: 'Splatterhouse', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Splatterhouse%20%28USA%29.zip' },
+      { name: 'Legendary Axe', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Legendary%20Axe%2C%20The%20%28USA%29.zip' },
+      { name: 'Legendary Axe II', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Legendary%20Axe%20II%2C%20The%20%28USA%29.zip' },
+      { name: 'Military Madness', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Military%20Madness%20%28USA%29.zip' },
+      { name: 'Dungeon Explorer', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Dungeon%20Explorer%20%28USA%29.zip' },
+      { name: 'Devil\'s Crush', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Devil%27s%20Crush%20%28USA%29.zip' },
+      { name: 'Alien Crush', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Alien%20Crush%20%28USA%29.zip' },
+      { name: 'Neutopia', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Neutopia%20%28USA%29.zip' },
+      { name: 'Neutopia II', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Neutopia%20II%20%28USA%29.zip' },
+      { name: 'Keith Courage in Alpha Zones', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Keith%20Courage%20in%20Alpha%20Zones%20%28USA%29.zip' },
+      { name: 'Air Zonk', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Air%20Zonk%20%28USA%29.zip' },
+      { name: 'Ninja Spirit', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Ninja%20Spirit%20%28USA%29.zip' },
+      { name: 'Cadash', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Cadash%20%28USA%29.zip' },
+      { name: 'Bomberman \'93', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Bomberman%20%2793%20%28USA%29.zip' },
+      { name: 'Bomberman \'94', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Bomberman%20%2794%20%28USA%29.zip' },
+      { name: 'New Adventure Island', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/New%20Adventure%20Island%20%28USA%29.zip' },
+      { name: 'Jackie Chan\'s Action Kung Fu', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Jackie%20Chan%27s%20Action%20Kung%20Fu%20%28USA%29.zip' },
+      { name: 'Parasol Stars', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Parasol%20Stars%20%28USA%29.zip' },
+      { name: 'Crater Maze', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Crater%20Maze%20%28USA%29.zip' },
+      { name: 'Chew Man Fu', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Chew%20Man%20Fu%20%28USA%29.zip' },
+      { name: 'World Court Tennis', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/World%20Court%20Tennis%20%28USA%29.zip' },
+      { name: 'Sinistron', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Sinistron%20%28USA%29.zip' },
+      { name: 'Silent Debuggers', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Silent%20Debuggers%20%28USA%29.zip' },
+      { name: 'Samurai-Ghost', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Samurai-Ghost%20%28USA%29.zip' },
+      { name: 'Shockman', url: 'https://archive.org/download/turbografx-16-romset-us/TurboGrafx-16%20%28USA%29/Shockman%20%28USA%29.zip' },
+    ]
+  },
+  psx: {
+    name: 'PSX', full: 'PlayStation',
+    core: 'psx', color: '#95a5a6', year: '1994',
+    exts: ['.bin', '.cue', '.chd', '.pbp', '.iso'],
+    face: [{ label: '□', key: 'KeyA' }, { label: '✕', key: 'KeyZ' }, { label: '○', key: 'KeyX' }, { label: '△', key: 'KeyS' }],
+    center: [{ label: 'SELECT', key: 'ShiftRight' }, { label: 'START', key: 'Enter' }],
+    shoulder: [{ label: 'L1', key: 'KeyQ' }, { label: 'R1', key: 'KeyW' }],
+    roms: [
+      { name: 'Castlevania: Symphony of the Night', url: 'https://archive.org/download/Centuron-PSX/Castlevania%20-%20Symphony%20of%20the%20Night.bin' },
+      { name: 'Metal Gear Solid (Disc 1)', url: 'https://archive.org/download/Centuron-PSX/Metal%20Gear%20Solid%20%28Disc%201%29.bin' },
+      { name: 'Crash Bandicoot', url: 'https://archive.org/download/Centuron-PSX/Crash%20Bandicoot.bin' },
+      { name: 'Crash Bandicoot 2', url: 'https://archive.org/download/Centuron-PSX/Crash%20Bandicoot%202%20-%20Cortex%20Strikes%20Back.bin' },
+      { name: 'Crash Bandicoot 3: Warped', url: 'https://archive.org/download/Centuron-PSX/Crash%20Bandicoot%203%20-%20Warped.bin' },
+      { name: 'Spyro the Dragon', url: 'https://archive.org/download/Centuron-PSX/Spyro%20the%20Dragon.bin' },
+      { name: 'Tekken 3', url: 'https://archive.org/download/Centuron-PSX/Tekken%203.bin' },
+      { name: 'Tekken 2', url: 'https://archive.org/download/Centuron-PSX/Tekken%202.bin' },
+      { name: 'Street Fighter Alpha 2', url: 'https://archive.org/download/Centuron-PSX/Street%20Fighter%20Alpha%202.bin' },
+      { name: 'Street Fighter Alpha 3', url: 'https://archive.org/download/Centuron-PSX/Street%20Fighter%20Alpha%203.bin' },
+      { name: 'Marvel vs. Capcom', url: 'https://archive.org/download/Centuron-PSX/Marvel%20vs.%20Capcom%20-%20Clash%20of%20Super%20Heroes.bin' },
+      { name: 'Mega Man X4', url: 'https://archive.org/download/Centuron-PSX/Mega%20Man%20X4.bin' },
+      { name: 'Mega Man X5', url: 'https://archive.org/download/Centuron-PSX/Mega%20Man%20X5.bin' },
+      { name: 'Mega Man X6', url: 'https://archive.org/download/Centuron-PSX/Mega%20Man%20X6.bin' },
+      { name: 'Mega Man Legends', url: 'https://archive.org/download/Centuron-PSX/Mega%20Man%20Legends.bin' },
+      { name: 'Rayman 2', url: 'https://archive.org/download/Centuron-PSX/Rayman%202%20-%20The%20Great%20Escape.bin' },
+      { name: 'Metal Slug X', url: 'https://archive.org/download/Centuron-PSX/Metal%20Slug%20X.bin' },
+      { name: 'Strider 2', url: 'https://archive.org/download/Centuron-PSX/Strider%202.bin' },
+      { name: 'Klonoa: Door to Phantomile', url: 'https://archive.org/download/Centuron-PSX/Klonoa%20-%20Door%20to%20Phantomile.bin' },
+      { name: 'Vagrant Story', url: 'https://archive.org/download/Centuron-PSX/Vagrant%20Story.bin' },
+      { name: 'CTR: Crash Team Racing', url: 'https://archive.org/download/Centuron-PSX/CTR%20-%20Crash%20Team%20Racing.bin' },
+      { name: 'Crash Bash', url: 'https://archive.org/download/Centuron-PSX/Crash%20Bash.bin' },
+      { name: 'Tomb Raider', url: 'https://archive.org/download/Centuron-PSX/Tomb%20Raider.bin' },
+      { name: 'Resident Evil 2 (Disc 1)', url: 'https://archive.org/download/Centuron-PSX/Resident%20Evil%202%20-%20Dual%20Shock%20Ver.%20%28USA%29%20%28Disc%201%29.bin' },
+      { name: 'PaRappa the Rapper', url: 'https://archive.org/download/Centuron-PSX/PaRappa%20the%20Rapper%20-%20The%20Hip%20Hop%20Hero.bin' },
+      { name: 'Bust-A-Move 4', url: 'https://archive.org/download/Centuron-PSX/Bust-A-Move%204.bin' },
+      { name: 'Soul Blade', url: 'https://archive.org/download/Centuron-PSX/Soul%20Blade.bin' },
+      { name: 'Doom', url: 'https://archive.org/download/Centuron-PSX/Doom.bin' },
+      { name: 'Worms Armageddon', url: 'https://archive.org/download/Centuron-PSX/Worms%20Armageddon.bin' },
+      { name: 'Pac-Man World', url: 'https://archive.org/download/Centuron-PSX/Pac-Man%20World%2020th%20Anniversary.bin' },
+      { name: 'JoJo\'s Bizarre Adventure', url: 'https://archive.org/download/Centuron-PSX/JoJo%27s%20Bizarre%20Adventure.bin' },
+      { name: 'Harmful Park (JP)', url: 'https://archive.org/download/Centuron-PSX/Harmful%20Park.bin' },
+      { name: 'Einhander', url: 'https://archive.org/download/Centuron-PSX/Einhander%20%28USA%29.bin' },
+      { name: 'R-Type Delta', url: 'https://archive.org/download/Centuron-PSX/R-Type%20Delta.bin' },
+      { name: 'Jumping Flash!', url: 'https://archive.org/download/Centuron-PSX/Jumping%20Flash%21.bin' },
+      { name: 'Bomberman Party Edition', url: 'https://archive.org/download/Centuron-PSX/Bomberman%20Party%20Edition%20%28USA%29.bin' },
+      { name: 'Puzzle Fighter II Turbo', url: 'https://archive.org/download/Centuron-PSX/Super%20Puzzle%20Fighter%20II%20Turbo.bin' },
+      { name: 'Bloody Roar 2', url: 'https://archive.org/download/Centuron-PSX/Bloody%20Roar%202%20-%20Bringer%20of%20the%20New%20Age.bin' },
+      { name: 'Bushido Blade', url: 'https://archive.org/download/Centuron-PSX/Bushido%20Blade.bin' },
+      { name: 'Bushido Blade 2', url: 'https://archive.org/download/Centuron-PSX/Bushido%20Blade%202%20%28USA%29.bin' },
+    ]
+  },
+};
+
+const KEY_MAP = {
+  'ArrowUp':    { code: 'ArrowUp',    key: 'ArrowUp',    keyCode: 38 },
+  'ArrowDown':  { code: 'ArrowDown',  key: 'ArrowDown',  keyCode: 40 },
+  'ArrowLeft':  { code: 'ArrowLeft',  key: 'ArrowLeft',  keyCode: 37 },
+  'ArrowRight': { code: 'ArrowRight', key: 'ArrowRight', keyCode: 39 },
+  'KeyZ':       { code: 'KeyZ',       key: 'z',          keyCode: 90 },
+  'KeyX':       { code: 'KeyX',       key: 'x',          keyCode: 88 },
+  'KeyA':       { code: 'KeyA',       key: 'a',          keyCode: 65 },
+  'KeyS':       { code: 'KeyS',       key: 's',          keyCode: 83 },
+  'KeyQ':       { code: 'KeyQ',       key: 'q',          keyCode: 81 },
+  'KeyW':       { code: 'KeyW',       key: 'w',          keyCode: 87 },
+  'Enter':      { code: 'Enter',      key: 'Enter',      keyCode: 13 },
+  'ShiftRight': { code: 'ShiftRight', key: 'Shift',      keyCode: 16 }
+};
+
+/* ══════════════════════════════════════
+   STATE
+   ══════════════════════════════════════ */
+let selectedConsole = null;
+let controllerVisible = false;   // Custom overlay OFF by default (EJS built-in ON)
+let swipeEnabled = true;
+let gamepadPollId = null;
+let gamepadPrevButtons = [];
+
+/* ══════════════════════════════════════
+   DOM REFS
+   ══════════════════════════════════════ */
+const menuScreen      = document.getElementById('menu-screen');
+const gameScreen      = document.getElementById('game-screen');
+const consoleGrid     = document.getElementById('console-grid');
+const romSection      = document.getElementById('rom-section');
+const romDropzone     = document.getElementById('rom-dropzone');
+const romInput        = document.getElementById('rom-input');
+const dropzoneLabel   = document.getElementById('dropzone-label');
+const dropzoneExts    = document.getElementById('dropzone-exts');
+const romLibrary      = document.getElementById('rom-library');
+const romLibTitle     = document.getElementById('rom-library-title');
+const controllerOvl   = document.getElementById('controller-overlay');
+const shoulderBar     = document.getElementById('shoulder-bar');
+const loadingOverlay  = document.getElementById('loading-overlay');
+const loadingSub      = document.getElementById('loading-sub');
+const topbarRom       = document.getElementById('topbar-rom');
+const optPanel        = document.getElementById('options-panel');
+const optBackdrop     = document.getElementById('opt-backdrop');
+const gamepadInd      = document.getElementById('gamepad-ind');
+const swipeHint       = document.getElementById('swipe-hint');
+
+/* ══════════════════════════════════════
+   BUILD CONSOLE CARDS
+   ══════════════════════════════════════ */
+Object.entries(CONSOLES).forEach(([id, c]) => {
+  const card = document.createElement('div');
+  card.className = 'console-card';
+  card.style.setProperty('--c', c.color);
+  card.dataset.id = id;
+  card.innerHTML = `<span class="card-abbr">${c.name}</span><span class="card-name">${c.full}</span><span class="card-exts">${c.exts.join(' ')}</span><span class="card-year">${c.year}</span>`;
+  card.addEventListener('click', () => selectConsole(id));
+  consoleGrid.appendChild(card);
+});
+
+function selectConsole(id) {
+  selectedConsole = id;
+  const c = CONSOLES[id];
+  document.documentElement.style.setProperty('--console-color', c.color);
+  document.querySelectorAll('.console-card').forEach(el => el.classList.toggle('selected', el.dataset.id === id));
+  romSection.classList.add('visible');
+  romInput.accept = c.exts.join(',');
+  dropzoneLabel.textContent = `Drop ${c.name} ROM here or click to browse`;
+  dropzoneExts.textContent = `Accepted: ${c.exts.join(', ')}`;
+  romLibrary.innerHTML = '';
+  if (c.roms && c.roms.length > 0) {
+    romLibTitle.style.display = '';
+    c.roms.forEach(rom => {
+      const item = document.createElement('div');
+      item.className = 'rom-lib-item';
+      item.innerHTML = `<span class="rom-lib-icon">🎮</span><span class="rom-lib-name">${rom.name}</span>`;
+      item.addEventListener('click', () => loadRomFromUrl(rom.url, rom.name, item));
+      romLibrary.appendChild(item);
+    });
+  } else {
+    romLibTitle.style.display = 'none';
+  }
+  romSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ══════════════════════════════════════
+   ROM LOADING
+   ══════════════════════════════════════ */
+romDropzone.addEventListener('click', () => romInput.click());
+romInput.addEventListener('change', e => { if (e.target.files.length) handleRomFile(e.target.files[0]); });
+let dragCount = 0;
+romDropzone.addEventListener('dragenter', e => { e.preventDefault(); dragCount++; romDropzone.classList.add('drag-over'); });
+romDropzone.addEventListener('dragleave', e => { e.preventDefault(); dragCount--; if (dragCount <= 0) { dragCount = 0; romDropzone.classList.remove('drag-over'); }});
+romDropzone.addEventListener('dragover', e => e.preventDefault());
+romDropzone.addEventListener('drop', e => { e.preventDefault(); dragCount = 0; romDropzone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleRomFile(e.dataTransfer.files[0]); });
+
+function handleRomFile(file) {
+  if (!selectedConsole) { toast('⚠️', 'Select a console first'); return; }
+  const c = CONSOLES[selectedConsole];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!c.exts.includes(ext)) { toast('⚠️', `Invalid file type. Expected: ${c.exts.join(', ')}`); return; }
+  launchEmulator(URL.createObjectURL(file), file.name);
+}
+
+function loadRomFromUrl(url, name, itemEl) {
+  if (!selectedConsole) return;
+  if (itemEl) { itemEl.classList.add('loading'); const icon = itemEl.querySelector('.rom-lib-icon'); if (icon) icon.textContent = '⏳'; }
+  toast('⏳', `Loading: ${name}…`);
+  launchEmulator(url, name);
+}
+
+/* ══════════════════════════════════════
+   EMULATOR LAUNCH
+   ══════════════════════════════════════ */
+function launchEmulator(gameUrl, displayName) {
+  const c = CONSOLES[selectedConsole];
+  menuScreen.style.display = 'none';
+  gameScreen.classList.add('active');
+  topbarRom.textContent = displayName;
+  loadingOverlay.classList.remove('hidden', 'fade-out');
+  loadingSub.textContent = `Core: ${c.core} — downloading…`;
+
+  buildController(selectedConsole);
+
+  // EmulatorJS config — EJS built-in controls enabled by default
+  window.EJS_player          = '#game';
+  window.EJS_core            = c.core;
+  window.EJS_gameUrl         = gameUrl;
+  window.EJS_pathtodata      = 'https://cdn.emulatorjs.org/stable/data/';
+  window.EJS_startOnLoaded   = true;
+  window.EJS_color           = c.color;
+  window.EJS_backgroundColor = '#000';
+  window.EJS_language        = 'en-US';
+  window.EJS_disableAutoLang = true;
+  window.EJS_gameName        = displayName;
+
+  const script = document.createElement('script');
+  script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+  script.onload = () => {
+    const check = setInterval(() => {
+      const gd = document.getElementById('game');
+      if (gd && (gd.querySelector('canvas') || gd.querySelector('iframe') || gd.children.length > 1)) {
+        clearInterval(check);
+        loadingOverlay.classList.add('fade-out');
+        setTimeout(() => loadingOverlay.classList.add('hidden'), 600);
+        startGamepadPolling();
+      }
+    }, 300);
+    setTimeout(() => { loadingOverlay.classList.add('fade-out'); setTimeout(() => loadingOverlay.classList.add('hidden'), 600); startGamepadPolling(); }, 15000);
+  };
+  script.onerror = () => { loadingSub.textContent = 'Failed to load emulator engine.'; toast('❌', 'CDN unreachable'); };
+  document.body.appendChild(script);
+  toast('🎮', `Loading ${c.name}: ${displayName}`);
+}
+
+/* ══════════════════════════════════════
+   CONTROLLER OVERLAY BUILDER
+   ══════════════════════════════════════ */
+function buildController(consoleId) {
+  const c = CONSOLES[consoleId];
+  controllerOvl.innerHTML = '';
+  shoulderBar.innerHTML = '';
+  controllerOvl.classList.toggle('hidden', !controllerVisible);
+  shoulderBar.classList.add('hidden');
+
+  const dpad = document.createElement('div');
+  dpad.className = 'dpad';
+  dpad.innerHTML = `<div class="dpad-bg-h"></div><div class="dpad-bg-v"></div>
+    <div class="dpad-zone dpad-up" data-key="ArrowUp">▲</div>
+    <div class="dpad-zone dpad-down" data-key="ArrowDown">▼</div>
+    <div class="dpad-zone dpad-left" data-key="ArrowLeft">◀</div>
+    <div class="dpad-zone dpad-right" data-key="ArrowRight">▶</div>`;
+  controllerOvl.appendChild(dpad);
+
+  const center = document.createElement('div');
+  center.className = 'ctrl-center';
+  const row = document.createElement('div');
+  row.className = 'ctrl-center-row';
+  c.center.forEach(btn => { const el = document.createElement('div'); el.className = 'ctrl-pill'; el.dataset.key = btn.key; el.textContent = btn.label; row.appendChild(el); });
+  center.appendChild(row);
+  controllerOvl.appendChild(center);
+
+  const n = c.face.length;
+  const face = document.createElement('div');
+  face.className = 'ctrl-face';
+  if (n <= 2) face.classList.add('face-2btn');
+  else if (n === 3) face.classList.add('face-3btn');
+  else face.classList.add('face-4btn');
+  c.face.forEach((btn, i) => { const el = document.createElement('div'); el.className = `face-btn fb-${i}`; el.dataset.key = btn.key; el.textContent = btn.label; face.appendChild(el); });
+  controllerOvl.appendChild(face);
+
+  if (c.shoulder.length) {
+    shoulderBar.classList.toggle('hidden', !controllerVisible);
+    c.shoulder.forEach(btn => { const el = document.createElement('div'); el.className = 'shoulder-btn'; el.dataset.key = btn.key; el.textContent = btn.label; shoulderBar.appendChild(el); });
+  }
+  wireControllerInputs();
+}
+
+/* ══════════════════════════════════════
+   CONTROLLER INPUT
+   ══════════════════════════════════════ */
+function wireControllerInputs() {
+  document.querySelectorAll('[data-key]').forEach(el => {
+    const code = el.dataset.key;
+    const press = (e) => { e.preventDefault(); e.stopPropagation(); el.classList.add('pressed'); fireKey('keydown', code); };
+    const release = (e) => { e.preventDefault(); e.stopPropagation(); el.classList.remove('pressed'); fireKey('keyup', code); };
+    el.addEventListener('touchstart', press, { passive: false });
+    el.addEventListener('touchend', release, { passive: false });
+    el.addEventListener('touchcancel', release, { passive: false });
+    el.addEventListener('mousedown', press);
+    el.addEventListener('mouseup', release);
+    el.addEventListener('mouseleave', (e) => { if (el.classList.contains('pressed')) release(e); });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  });
+}
+
+function fireKey(type, code) {
+  const info = KEY_MAP[code];
+  if (!info) return;
+  const opts = { code: info.code, key: info.key, keyCode: info.keyCode, which: info.keyCode, bubbles: true, cancelable: true };
+  document.dispatchEvent(new KeyboardEvent(type, opts));
+  const t = document.querySelector('#game canvas, #game iframe');
+  if (t) { try { t.contentDocument ? t.contentDocument.dispatchEvent(new KeyboardEvent(type, opts)) : t.dispatchEvent(new KeyboardEvent(type, opts)); } catch(e) {} }
+}
+
+/* ══════════════════════════════════════
+   XBOX / GAMEPAD
+   ══════════════════════════════════════ */
+const GAMEPAD_MAP = { 0:'KeyX', 1:'KeyZ', 2:'KeyA', 3:'KeyS', 4:'KeyQ', 5:'KeyW', 8:'ShiftRight', 9:'Enter', 12:'ArrowUp', 13:'ArrowDown', 14:'ArrowLeft', 15:'ArrowRight' };
+const AXIS_THRESHOLD = 0.5;
+
+window.addEventListener('gamepadconnected', (e) => { gamepadInd.classList.add('visible'); toast('🎮', `Gamepad: ${e.gamepad.id.substring(0, 30)}`); });
+window.addEventListener('gamepaddisconnected', () => { gamepadInd.classList.remove('visible'); toast('🎮', 'Gamepad disconnected'); });
+
+function startGamepadPolling() { if (gamepadPollId) return; gamepadPrevButtons = []; gamepadPollId = setInterval(pollGamepad, 16); }
+function pollGamepad() {
+  const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null; for (let i = 0; i < gps.length; i++) { if (gps[i]) { gp = gps[i]; break; } } if (!gp) return;
+  if (!gamepadInd.classList.contains('visible')) gamepadInd.classList.add('visible');
+  Object.entries(GAMEPAD_MAP).forEach(([idx, kc]) => {
+    const i = +idx, btn = gp.buttons[i]; if (!btn) return;
+    const p = btn.pressed || btn.value > 0.5, w = !!gamepadPrevButtons[i];
+    if (p && !w) fireKey('keydown', kc); if (!p && w) fireKey('keyup', kc);
+    gamepadPrevButtons[i] = p;
+  });
+  const lx = gp.axes[0]||0, ly = gp.axes[1]||0;
+  axKey('_aL', lx < -AXIS_THRESHOLD, 'ArrowLeft'); axKey('_aR', lx > AXIS_THRESHOLD, 'ArrowRight');
+  axKey('_aU', ly < -AXIS_THRESHOLD, 'ArrowUp');   axKey('_aD', ly > AXIS_THRESHOLD, 'ArrowDown');
+}
+const _ax = {};
+function axKey(id, on, kc) { const w = !!_ax[id]; if (on && !w) fireKey('keydown', kc); if (!on && w) fireKey('keyup', kc); _ax[id] = on; }
+
+/* Custom touch/gesture handlers removed — using EmulatorJS built-in controls only */
+
+/* ══════════════════════════════════════
+   VISUAL EFFECTS ENGINE
+   ══════════════════════════════════════ */
+const fxState = {
+  scanlines: true, chromatic: false, vignette: false, bloom: false,
+  curvature: false, phosphor: false, backlight: false, flicker: false, glowzoom: false, bezel: false
+};
+
+function applyFx() {
+  const gameEl = document.getElementById('game');
+  const gc = document.getElementById('game-container');
+  if (!gameEl) return;
+
+  // Overlay effects
+  document.getElementById('fx-scanlines').classList.toggle('fx-hidden', !fxState.scanlines);
+  document.getElementById('fx-vignette').classList.toggle('fx-hidden', !fxState.vignette);
+  document.getElementById('fx-phosphor').classList.toggle('fx-hidden', !fxState.phosphor);
+  document.getElementById('fx-backlight').classList.toggle('fx-hidden', !fxState.backlight);
+
+  // CSS class effects on #game
+  gameEl.classList.toggle('fx-curvature', fxState.curvature);
+  gameEl.classList.toggle('fx-flicker', fxState.flicker);
+
+  // Compound filter on #game (chromatic + bloom + glowzoom can combine)
+  let filters = [];
+  if (fxState.chromatic) filters.push('url(#chromatic-filter)');
+  if (fxState.bloom) filters.push('brightness(1.12) contrast(1.06)');
+  if (fxState.glowzoom) filters.push('brightness(1.08)');
+  gameEl.style.filter = filters.length ? filters.join(' ') : '';
+  gameEl.style.transform = fxState.glowzoom ? 'scale(1.005)' : '';
+
+  // Arcade bezel
+  gc.classList.toggle('arcade-bezel', fxState.bezel);
+}
+
+/* ══════════════════════════════════════
+   AUDIO FX CONTROLS
+   ══════════════════════════════════════ */
+function updateAudioFX(param, value) {
+  const ctx = window._audioFXCtx;
+  if (!ctx || !ctx._audioFX) return;
+  const fx = ctx._audioFX;
+  switch (param) {
+    case 'echoTime': fx.delay.delayTime.setValueAtTime(value / 1000, ctx.currentTime); break;
+    case 'echoMix': fx.echoWet.gain.setValueAtTime(value / 100, ctx.currentTime); break;
+    case 'reverbMix': fx.reverbWet.gain.setValueAtTime(value / 100, ctx.currentTime); break;
+  }
+}
+
+/* ══════════════════════════════════════
+   OPTIONS & TOGGLES
+   ══════════════════════════════════════ */
+document.getElementById('btn-options').addEventListener('click', () => { optPanel.classList.add('open'); optBackdrop.classList.add('visible'); });
+optBackdrop.addEventListener('click', () => { optPanel.classList.remove('open'); optBackdrop.classList.remove('visible'); });
+
+// Controller opacity
+const sliderOpacity = document.getElementById('slider-opacity');
+const valOpacity = document.getElementById('val-opacity');
+sliderOpacity.addEventListener('input', e => { const v = e.target.value; valOpacity.textContent = v + '%'; document.documentElement.style.setProperty('--ctrl-opacity', v / 100); });
+
+// Custom overlay toggle (OFF by default)
+const toggleCtrl = document.getElementById('toggle-ctrl');
+toggleCtrl.addEventListener('click', () => {
+  controllerVisible = !controllerVisible;
+  toggleCtrl.classList.toggle('on', controllerVisible);
+  controllerOvl.classList.toggle('hidden', !controllerVisible);
+  shoulderBar.classList.toggle('hidden', !controllerVisible || !CONSOLES[selectedConsole]?.shoulder.length);
+});
+
+// Toolbar quick-toggle
+document.getElementById('btn-ctrl-toggle').addEventListener('click', () => {
+  controllerVisible = !controllerVisible;
+  toggleCtrl.classList.toggle('on', controllerVisible);
+  controllerOvl.classList.toggle('hidden', !controllerVisible);
+  shoulderBar.classList.toggle('hidden', !controllerVisible || !CONSOLES[selectedConsole]?.shoulder.length);
+  toast('🎮', controllerVisible ? 'Overlay shown' : 'Overlay hidden');
+});
+
+// Swipe
+const toggleSwipe = document.getElementById('toggle-swipe');
+toggleSwipe.addEventListener('click', () => { swipeEnabled = !swipeEnabled; toggleSwipe.classList.toggle('on', swipeEnabled); swipeHint.classList.toggle('hidden', !swipeEnabled); });
+
+// Display effects toggles
+const fxToggles = {
+  scanlines: 'toggle-scanlines', chromatic: 'toggle-chromatic', vignette: 'toggle-vignette',
+  bloom: 'toggle-bloom', curvature: 'toggle-curvature', phosphor: 'toggle-phosphor',
+  backlight: 'toggle-backlight', flicker: 'toggle-flicker', glowzoom: 'toggle-glowzoom', bezel: 'toggle-bezel'
+};
+Object.entries(fxToggles).forEach(([key, elId]) => {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.addEventListener('click', () => {
+    fxState[key] = !fxState[key];
+    el.classList.toggle('on', fxState[key]);
+    applyFx();
+  });
+});
+
+// Audio FX sliders
+const echoTimeSlider = document.getElementById('slider-echo-time');
+const echoTimeVal = document.getElementById('val-echo-time');
+echoTimeSlider.addEventListener('input', e => { echoTimeVal.textContent = e.target.value + 'ms'; updateAudioFX('echoTime', +e.target.value); });
+
+const echoMixSlider = document.getElementById('slider-echo-mix');
+const echoMixVal = document.getElementById('val-echo-mix');
+echoMixSlider.addEventListener('input', e => { echoMixVal.textContent = e.target.value + '%'; updateAudioFX('echoMix', +e.target.value); });
+
+const reverbMixSlider = document.getElementById('slider-reverb-mix');
+const reverbMixVal = document.getElementById('val-reverb-mix');
+reverbMixSlider.addEventListener('input', e => { reverbMixVal.textContent = e.target.value + '%'; updateAudioFX('reverbMix', +e.target.value); });
+
+// Fullscreen
+document.getElementById('btn-fullscreen').addEventListener('click', () => { if (!document.fullscreenElement) gameScreen.requestFullscreen().catch(()=>{}); else document.exitFullscreen(); });
+
+// Back
+document.getElementById('btn-back').addEventListener('click', () => { if (confirm('Return to menu? Current game will be lost.')) location.reload(); });
+
+/* ══════════════════════════════════════
+   TOAST
+   ══════════════════════════════════════ */
+let toastTimer;
+function toast(icon, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+})();
+</script>
+</body>
+</html>
